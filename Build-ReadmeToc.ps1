@@ -10,20 +10,8 @@ param(
 
 $excludeDirs = @('.git', '.snapshot', '.vscode', '.github')
 
-# Derive snapshot ID from most recent .snapshot/project-snapshots_*_tree.md
-$snapshotDir = Join-Path $RepoRoot '.snapshot'
-$snapshotFile = Get-ChildItem -Path $snapshotDir -Filter 'project-snapshots_*_tree.md' -ErrorAction SilentlyContinue |
-Sort-Object Name -Descending |
-Select-Object -First 1
-
-$snapshotId = if ($snapshotFile)
-{
-    [System.IO.Path]::GetFileNameWithoutExtension($snapshotFile.Name)
-}
-else
-{
-    "project-snapshots_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-}
+# Generate a fresh timestamp for this README rebuild
+$snapshotId = Get-Date -Format 'yyyyMMdd_HHmmss'
 
 # Scan top-level subdirectories
 $subdirs = Get-ChildItem -Path $RepoRoot -Directory |
@@ -53,11 +41,11 @@ $readme = @"
 
 ## Instructions
 
-Welcome to the project-snapshots repository. This README is the primary entry point for navigating to the primary entry point of each snapshot payload -- the TREE files. This file is a meta tree file.
+Welcome to the project-snapshots repository. This README is the primary entry point for navigating to the primary entry point of each snapshot payload -- the ``_tree.md`` files seen in each project snapshot subdirectory.
 
-For any subdirectory in this repo, you will find an associated snapshot payload, each with a detailed snapshot tree TOC ``*_tree.md`` file
+Each \*\_tree.md file contains byte-offset indexed file metadata for selective LLM context loading from the corresponding ``*.txt`` sharded snapshot payload files.
 
-## Meta Tree for ``$snapshotId``
+## Meta Tree ``$snapshotId``
 
 ``````
 $treeBlock

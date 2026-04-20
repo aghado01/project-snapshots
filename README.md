@@ -2,14 +2,16 @@
 
 ## Instructions
 
-Welcome to the project-snapshots repository. This README is the primary entry point for navigating to the primary entry point of each snapshot payload -- the TREE files. This file is a meta tree file.
+Welcome to the project-snapshots repository. This README is the primary entry point for navigating to the primary entry point of each snapshot payload -- the `_tree.md` files seen in each project snapshot subdirectory.
 
-For any subdirectory in this repo, you will find an associated snapshot payload, each with a detailed snapshot tree TOC `*_tree.md` file
+Each \*\_tree.md file contains byte-offset indexed file metadata for selective LLM context loading from the corresponding `*.txt` sharded snapshot payload files.
 
-## Meta Tree for `project-snapshots_20260420_024216_tree`
+## Meta Tree `20260420_123723`
 
 ```
 project-snapshots
+    context-guardian
+        src_20260420_123358_tree.md
     prompt-harness
         prompt-harness_20260420_010807_tree.md
     reposnapshot
