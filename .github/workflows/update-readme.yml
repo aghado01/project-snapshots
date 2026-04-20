@@ -1,0 +1,25 @@
+name: Rebuild README TOC
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "README.md" # prevents infinite loop on bot commit
+
+jobs:
+  rebuild-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebuild README and publish
+        shell: pwsh
+        run: ./Invoke-PublishSnapshot.ps1 -Message "chore: rebuild README TOC [skip ci]"
