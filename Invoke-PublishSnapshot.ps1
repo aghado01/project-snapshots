@@ -10,6 +10,10 @@ Push-Location $RepoRoot
 
 try
 {
+    Write-Host "==> Pulling latest from remote..."
+    git pull --ff-only
+    if ($LASTEXITCODE -ne 0) { throw "git pull failed — resolve conflicts before publishing." }
+
     Write-Host "==> Rebuilding README..."
     & "$RepoRoot\Build-ReadmeToc.ps1" -RepoRoot $RepoRoot
 
