@@ -7,14 +7,15 @@ $shardsize = 32768
 $targetDir = "ps.core.pwshspc/src"
 $target = "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/$targetDir"
 $ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threadparsed", ".vscode", ".depr", ".experiments", "ingest", ".schemas", ".feedback", ".legacy", ".discussion", ".notes", ".copilot", ".git-old", "assemblies", "enhancements", "tests", "preprocessing")
-$ignoreFiles = @("*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.gitignore","*__init__.py","*.scratch.md") #"*.md",
+$ignoreFiles = @("*.md","*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.gitignore","*__init__.py","*.scratch.md") #"*.md",
 $ignores = $ignoreDirectories + $ignoreFiles
 # SelectionOverrides @("*.py", "*.ps1")
 Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -Strategy "FileLevel" -ExtraExcludePatterns $ignores -StripComments $False -IncludeFileContent $True
 
 
-# $target = "C:\Users\azrie\PDenv\UserGithub\project-snapshots"
-# Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -Strategy "FileLevel" -ExtraExcludePatterns $ignores -StripComments $True -IncludeFileContent $False
+$target = "C:\Users\azrie\PDenv\UserGithub\project-snapshots"
+$ignores = @("*.txt", "*.json", "*.gitignore","*.scratch.md")
+Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -Strategy "FileLevel" -ExtraExcludePatterns $ignores -StripComments $True -IncludeFileContent $False
 ```
 
 Github connector, repository `PowerShellCore`:
