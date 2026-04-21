@@ -1,8 +1,3 @@
-Now I have everything I need. Here is the README, written directly from the source:
-
----
-
-```markdown
 # spcx#
 
 **Super-Paramagnetic Clustering in C#** — a .NET library implementing the Blatt–Wiseman–Domany (1996) SPC algorithm, extended with a broad metric and proximity menu, pluggable coupling kernels, a full KL-divergence analysis suite, and PowerShell-friendly batch/checkpoint DTOs.
@@ -57,6 +52,7 @@ The Potts state space is `Q = 20` (default). `FastUnionFind` with path compressi
 ---
 
 ## Source Layout
+
 ```
 
 src/
@@ -120,7 +116,7 @@ src/
 ├── SyntheticData.SpatialBlobs.cs # Simple isotropic blobs at varying densities
 └── SyntheticData.TwoMoons.cs # Non-convex interleaved crescents
 
-````
+```
 
 ---
 
@@ -144,7 +140,7 @@ SpcBatchResult result = SpcBatch.Run(request);
 // result.FinalSpins[T]      — cluster labels at temperature T
 // result.Graph              — CSR graph (shared read-only; required for analysis)
 // result.Warnings           — connectivity diagnostics
-````
+```
 
 All metric, proximity, kernel, and delta-estimator combinations share the same `SpcBatchRequest`/`SpcBatchResult` contract. `SpcBatch.Run` is the single entry point; internal dispatch is via partial-class metric and proximity builders.
 
