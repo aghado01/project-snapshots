@@ -4,9 +4,9 @@
 #Ignore workflow
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 
-$target = "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/pet-projects/bayesian-driver"
+$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.copilot++\cybernetics"
 $shardsize = 32768
-$ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threadparsed", ".vscode", ".depr", ".experiments", "ingest", ".schemas", ".feedback", ".legacy", ".discussion", ".notes", ".copilot", ".git-old", "assemblies", "enhancements", "tests")
+$ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threadparsed", ".vscode", ".depr", ".experiments", "ingest", ".schemas", ".feedback", ".legacy", ".discussion", ".notes", ".copilot", ".git-old", "assemblies", "enhancements", "tests","venv")
 $ignoreFiles = @("*.md","*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.gitignore", "*.pyc","*__init__.py","*.scratch.md","*snapignore.txt")
 $ignores = $ignoreDirectories + $ignoreFiles
 Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -Strategy "FileLevel" -ExtraExcludePatterns $ignores -StripComments $True -IncludeFileContent $True
