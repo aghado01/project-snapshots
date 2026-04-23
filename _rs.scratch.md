@@ -5,11 +5,15 @@
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 
 $target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.reposnapshot\reposnapshot-v3"
+$target = $target -Replace '\\', '/'
 $shardsize = 32768
+$strategy = "FileLevel"
+$includeFileContent = $True
+$stripComments = $False
 $ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threadparsed", ".vscode", ".depr", ".experiments", "ingest", ".schemas", ".feedback", ".legacy", ".discussion", ".notes", ".copilot", ".git-old", "assemblies", "enhancements", "tests","venv")
 $ignoreFiles = @("*.md","*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.gitignore", "*.pyc","*__init__.py","*.scratch.md","*snapignore.txt")
 $ignores = $ignoreDirectories + $ignoreFiles
-Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -Strategy "FileLevel" -ExtraExcludePatterns $ignores -StripComments $True -IncludeFileContent $True
+Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -Strategy  -ExtraExcludePatterns $ignores -StripComments $stripComments -IncludeFileContent $includeFileContent
 
 # Selections workflow
 # import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
