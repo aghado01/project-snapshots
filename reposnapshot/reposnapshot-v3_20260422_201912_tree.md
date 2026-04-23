@@ -17,6 +17,7 @@ The file extension of the shard files are intentionally .txt to encourage use of
 Do not use grep to search the data because it will return an explosion of duplications.
 
 ## Tree for `reposnapshot-v3_20260422_201912_s*.txt`
+
 ```
 file row metadata: name<TAB>shard_index<TAB>row_offset<TAB>row_meta_end<TAB>row_content_begin<TAB>row_content_end
 reposnapshot-v3
@@ -33,3 +34,9 @@ reposnapshot-v3
     rs.core.ingest.psm1	s003	28102	28158	28162	31731
     rs.core.internals.psm1	s004	138	198	202	3935
 ```
+
+Supplementary files:
+
+1. README.md - project readme working draft
+2. todo.md - things on user's mind for future development, near or longterm
+3. copilot-colonel-chaining.md - current dev discussion for colonel

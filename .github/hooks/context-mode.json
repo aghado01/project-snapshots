@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "C:/Users/azrie/PDenv/nodejs/node.exe \"C:/Users/azrie/PDenv/usergithub/context-mode/cli.bundle.mjs\" hook vscode-copilot pretooluse"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "C:/Users/azrie/PDenv/nodejs/node.exe \"C:/Users/azrie/PDenv/usergithub/context-mode/cli.bundle.mjs\" hook vscode-copilot posttooluse"
+      }
+    ],
+    "PreCompact": [
+      {
+        "type": "command",
+        "command": "C:/Users/azrie/PDenv/nodejs/node.exe \"C:/Users/azrie/PDenv/usergithub/context-mode/cli.bundle.mjs\" hook vscode-copilot precompact"
+      }
+    ],
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "C:/Users/azrie/PDenv/nodejs/node.exe \"C:/Users/azrie/PDenv/usergithub/context-mode/cli.bundle.mjs\" hook vscode-copilot sessionstart"
+      }
+    ]
+  }
+}
