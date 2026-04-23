@@ -39,6 +39,7 @@ foreach ($dir in $subdirs)
 
         if ($supplementary)
         {
+            1
             $treeLines.Add("        Supplementary files")
             foreach ($f in $supplementary)
             {
