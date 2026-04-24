@@ -6,14 +6,14 @@ Welcome to the project-snapshots repository. This README is the primary entry po
 
 Each \*\_tree.md file contains byte-offset indexed file metadata for selective LLM context loading from the corresponding `*.txt` sharded snapshot payload files.
 
-## Meta Tree `20260424_022705`
+## Meta Tree `20260424_043224`
 
 ```
 project-snapshots
     bayesian-driver
         bayesian-driver_20260420_234531_tree.md
     claudeCodeTools
-        tools_20260423_123303_tree.md
+        tools_20260424_042930_tree.md
         Supplementary files
             SKILL.md
     context-guardian
