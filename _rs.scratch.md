@@ -4,12 +4,12 @@
 #Ignore workflow
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 
-$target = "C:\Users\azrie\.claude\tools"
+$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.reposnapshot\rs.core\rs-share\threadparser"
 $target = $target -Replace '\\', '/'
 $shardsize = 32768
 $strategy = "FileLevel"
 $includeFileContent = $True
-$stripComments = $False
+$stripComments = $True
 $ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threadparsed", ".vscode", ".depr", ".experiments", "ingest", ".schemas", ".feedback", ".legacy", ".discussion", ".notes", ".copilot", ".git-old", "assemblies", "enhancements", "tests","venv", ".claude","smoke-test")
 $ignoreFiles = @("*.md","*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.gitignore", "*.pyc","*__init__.py","*.scratch.md", "*snapignore.txt")
 $ignores = $ignoreDirectories + $ignoreFiles
