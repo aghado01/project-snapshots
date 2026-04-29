@@ -36,7 +36,6 @@ reposnapshot-v3
 ```
 
 Supplementary files:
-
-1. README.md - project readme working draft
-2. todo.md - things on user's mind for future development, near or longterm
-3. copilot-colonel-chaining.md - current dev discussion for colonel
+copilot-colonel-chaining.md
+README.md
+todo.md

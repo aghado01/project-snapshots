@@ -76,3 +76,11 @@ prompt-harness
             slice_summary.py	s002	23784	23857	23861	24081
     init.ps1	s001	2382	2427	2431	5979
 ```
+Supplementary files:
+ambiguity.jsonl
+ci.yml
+citations.jsonl
+instructions.jsonl
+README.md
+requirements.txt
+WALKTHROUGH.md

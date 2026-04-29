@@ -37,14 +37,32 @@ foreach ($dir in $subdirs)
         Where-Object { $_.Name -ne $treeMd.Name -and $_.Name -notmatch '_s\d+\.txt$' } |
         Sort-Object Name
 
+        # Append/replace Supplementary files section in the tree.md itself
+        $treeMdPath = $treeMd.FullName
+        $existingContent = Get-Content -Path $treeMdPath -Raw -Encoding UTF8
+
+        # Strip any prior supplementary section (from the marker onward)
+        $marker = "`nSupplementary files:"
+        $markerIdx = $existingContent.IndexOf($marker)
+        $baseContent = if ($markerIdx -ge 0) { $existingContent.Substring(0, $markerIdx) } else { $existingContent.TrimEnd() }
+
         if ($supplementary)
         {
-            $treeLines.Add("        Supplementary files")
+            $suppLines = [System.Collections.Generic.List[string]]::new()
+            $suppLines.Add('')
+            $suppLines.Add('Supplementary files:')
             foreach ($f in $supplementary)
             {
-                $treeLines.Add("            $($f.Name)")
+                $suppLines.Add($f.Name)
             }
+            $newTreeContent = $baseContent + ($suppLines -join "`n")
         }
+        else
+        {
+            $newTreeContent = $baseContent
+        }
+
+        Set-Content -Path $treeMdPath -Value $newTreeContent -Encoding UTF8 -NoNewline
     }
 }
 

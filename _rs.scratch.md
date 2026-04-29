@@ -4,7 +4,7 @@
 #Ignore workflow
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 
-$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.reposnapshot\rs.core\rs-share\threadparser"
+$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\pet-projects\claudeCodeTools"
 $target = $target -Replace '\\', '/'
 $shardsize = 32768
 $strategy = "FileLevel"
