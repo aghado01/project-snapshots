@@ -1,4 +1,4 @@
-# Tree Manifest TOC for Snapshot: `claudeCodeTools_20260429_084002_s*.txt`
+h# Tree Manifest TOC for Snapshot: `claudeCodeTools_20260429_084002_s*.txt`
 
 Strategy: FileLevel | MaxShardSpanBytes: 32768 | Created: 20260429_084004 | Shards: 5
 
@@ -18,6 +18,7 @@ The file extension of the shard files are intentionally .txt to encourage use of
 Do not use grep to search the data because it will return an explosion of duplications.
 
 ## Tree for `claudeCodeTools_20260429_084002_s*.txt`
+
 ```
 file row metadata: name<TAB>shard_index<TAB>row_offset<TAB>row_meta_end<TAB>row_content_begin<TAB>row_content_end
 claudeCodeTools
@@ -29,6 +30,7 @@ claudeCodeTools
     jso-hash.ps1	s004	29580	29629	29633	32278
     jso-jackson.ps1	s005	138	193	197	54676
 ```
+
 Supplementary files:
 README.md
 rpc-followup.md
