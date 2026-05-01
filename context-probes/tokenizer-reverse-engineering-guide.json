@@ -1,0 +1,237 @@
+{
+  "tokenizer_reverse_engineering_guide": "Systematic Unicode Probing for Tokenizer Analysis",
+  "description": "How to use Unicode probing to reverse-engineer tokenizer behavior and mapping",
+  "methodology_basis": "Techniques from SPY Lab Claude tokenizer reverse engineering and BPE research",
+  
+  "reverse_engineering_techniques": {
+    "1_systematic_unicode_probing": {
+      "description": "Test tokenizer response to different Unicode character categories",
+      "technique": "Progressive character category testing",
+      "reveals": [
+        "Script boundary detection (Latin vs Chinese vs Arabic)",
+        "Multi-byte character handling",
+        "Normalization behavior", 
+        "Special character treatment (emojis, mathematical symbols)"
+      ],
+      "example_probe": {
+        "ascii": {"a": 1, "z": 1, "A": 1, "Z": 1},
+        "chinese": {"中": 1, "国": 1, "文": 1},
+        "emoji": {"😀": 2, "🎯": 2, "🚀": 2},
+        "mathematical": {"∀": 1, "∃": 1, "∈": 1}
+      }
+    },
+    
+    "2_minimal_pair_analysis": {
+      "description": "Use minimal pairs to detect exact token boundaries",
+      "technique": "Character-by-character boundary detection",
+      "reveals": [
+        "Where tokenizer splits occur",
+        "Context-dependent splitting",
+        "Merge pattern thresholds"
+      ],
+      "example_pairs": {
+        "single_char": "a",
+        "repeated": ["aa", "aaa", "aaaa", "aaaaa"],
+        "with_space": [" a", "a ", " a "],
+        "mixed_script": ["a中", "中a", "a1", "1a"]
+      }
+    },
+    
+    "3_bpe_merge_detection": {
+      "description": "Reverse engineer BPE merge priorities and patterns",  
+      "technique": "Frequency-driven merge pattern analysis",
+      "reveals": [
+        "Common bigram merge priority",
+        "Repetition merge thresholds",
+        "Language-specific merge patterns"
+      ],
+      "example_probes": {
+        "common_bigrams": ["th", "he", "in", "er", "an", "re"],
+        "repetition_tests": ["x", "xx", "xxx", "xxxx", "xxxxx"],
+        "context_tests": ["the", " the", "the ", " the "]
+      }
+    },
+    
+    "4_progressive_boundary_mapping": {
+      "description": "Map exact tokenizer split points using progressive addition",
+      "technique": "Add one character at a time to detect splits",
+      "reveals": [
+        "Exact boundary locations",
+        "Context-dependent splitting behavior",
+        "Tokenizer consistency patterns"
+      ],
+      "example_sequence": {
+        "base_word": "hello",
+        "progressive": ["h", "he", "hel", "hell", "hello"],
+        "token_analysis": "Detect if splits occur mid-word"
+      }
+    }
+  },
+
+  "usage_examples": {
+    "basic_probe_generation": {
+      "powershell_commands": [
+        "Import-Module .\\UnicodeProbeGenerator.psm1",
+        "Import-Module .\\UnifiedTokenCounterHelper.psm1",
+        "",
+        "# Generate comprehensive probe suite",
+        "$probeGen = New-UnicodeProbeGenerator -OutputDirectory 'tokenizer-probes'",
+        "$probeGen.GenerateFullProbeSuite()",
+        "",
+        "# This creates:",
+        "# - unicode-systematic-probe.json",
+        "# - bpe-merge-probe.json", 
+        "# - token-boundary-probe.json",
+        "# - minimal-pair-*.json files",
+        "# - run-reverse-engineering-analysis.ps1"
+      ]
+    },
+    
+    "running_reverse_engineering_analysis": {
+      "powershell_commands": [
+        "# Setup tokenizers for comparison",
+        "$tokenCounter = New-TokenCounterHelper",
+        "",
+        "# Register multiple tokenizers to compare",
+        "Register-Tokenizer -TokenCounter $tokenCounter -Name 'gpt2' -ExecutablePath 'universal-tokenizer.exe' -CommandTemplate '{exe} count --model gpt2 {file}'",
+        "Register-Tokenizer -TokenCounter $tokenCounter -Name 'llama2' -ExecutablePath 'universal-tokenizer.exe' -CommandTemplate '{exe} count --model meta-llama/Llama-2-7b-hf {file}'",
+        "Register-Tokenizer -TokenCounter $tokenCounter -Name 'tiktoken' -ExecutablePath 'tiktoken.exe' -CommandTemplate '{exe} count --model gpt-4 {file}'",
+        "Register-Tokenizer -TokenCounter $tokenCounter -Name 'deepseek' -ExecutablePath 'ds-tokenanalysis.exe'",
+        "",
+        "# Run automated analysis",
+        ".\\tokenizer-probes\\run-reverse-engineering-analysis.ps1"
+      ]
+    },
+    
+    "interpreting_results": {
+      "analysis_patterns": {
+        "consistent_tokenization": {
+          "pattern": "Low variance (<0.5) across tokenizers",
+          "meaning": "All tokenizers handle this character/pattern similarly",
+          "implication": "Standard Unicode/BPE behavior"
+        },
+        "moderate_variance": {
+          "pattern": "Medium variance (0.5-2.0) across tokenizers", 
+          "meaning": "Some differences in tokenization approach",
+          "implication": "Different merge priorities or Unicode handling"
+        },
+        "high_variance": {
+          "pattern": "High variance (>2.0) across tokenizers",
+          "meaning": "Significant differences in approach",
+          "implication": "Different tokenization algorithms or training data"
+        }
+      }
+    }
+  },
+
+  "advanced_probing_techniques": {
+    "unicode_normalization_detection": {
+      "description": "Detect if tokenizer applies Unicode normalization",
+      "test_cases": [
+        "café vs cafe\\u0301 (combined vs decomposed)",
+        "ñ vs n\\u0303 (precomposed vs decomposed)",
+        "Various Unicode equivalence forms"
+      ],
+      "analysis": "Different token counts reveal normalization behavior"
+    },
+    
+    "emoji_segmentation_analysis": {
+      "description": "Understand emoji and complex Unicode handling",
+      "test_cases": [
+        "👨‍👩‍👧‍👦 (family emoji with ZWJ sequences)",
+        "🇺🇸 (flag sequences)",
+        "👍🏽 (emoji with skin tone modifiers)"
+      ],
+      "reveals": "How tokenizer handles complex Unicode sequences"
+    },
+    
+    "subword_merge_threshold_detection": {
+      "description": "Find exact thresholds where BPE merges occur",
+      "methodology": [
+        "Test repetition lengths: a, aa, aaa, aaaa...",
+        "Find break points where token count changes",
+        "Map merge patterns for different characters"
+      ],
+      "expected_patterns": "Common characters merge at lower repetition counts"
+    }
+  },
+
+  "real_world_applications": {
+    "token_budget_optimization": {
+      "use_case": "Optimize prompts for specific tokenizers",
+      "method": "Use probe results to choose characters that tokenize efficiently",
+      "benefit": "Reduce token usage and costs"
+    },
+    
+    "cross_model_compatibility": {
+      "use_case": "Design content that works well across multiple models",
+      "method": "Identify consistently tokenized patterns",
+      "benefit": "Predictable behavior across different AI models"
+    },
+    
+    "tokenizer_fingerprinting": {
+      "use_case": "Identify which tokenizer a system is using",
+      "method": "Test with probe patterns and match to known signatures",
+      "benefit": "Model identification and optimization"
+    },
+    
+    "multilingual_optimization": {
+      "use_case": "Optimize content for multilingual models",
+      "method": "Test script boundaries and merge patterns",
+      "benefit": "Better handling of mixed-language content"
+    }
+  },
+
+  "probe_design_principles": {
+    "systematic_coverage": "Test representative samples from all major Unicode categories",
+    "minimal_pairs": "Use controlled differences to isolate specific behaviors",
+    "progressive_complexity": "Build from simple to complex patterns",
+    "boundary_detection": "Focus on transition points and edge cases",
+    "frequency_analysis": "Test both common and rare patterns",
+    "context_sensitivity": "Test same patterns in different contexts"
+  },
+
+  "expected_discoveries": {
+    "bpe_tokenizers": {
+      "characteristics": [
+        "Merge common character pairs early",
+        "Context-independent splitting",
+        "Frequency-driven merge priorities",
+        "Consistent cross-language handling"
+      ],
+      "probe_signatures": "Low variance on common patterns, higher on rare ones"
+    },
+    
+    "wordpiece_tokenizers": {
+      "characteristics": [
+        "Probability-based merging",
+        "## prefixes for continuation",
+        "Word-boundary awareness",
+        "Language model informed decisions"
+      ],
+      "probe_signatures": "Different space handling, prefix patterns"
+    },
+    
+    "sentencepiece_tokenizers": {
+      "characteristics": [
+        "No pre-tokenization assumptions",
+        "Handles raw text directly",
+        "Consistent space representation",
+        "Multilingual optimization"
+      ],
+      "probe_signatures": "Consistent space handling, uniform Unicode treatment"
+    }
+  },
+
+  "integration_with_token_proxy_research": {
+    "combined_analysis": "Use probe results to inform proxy character selection",
+    "optimization_cycle": [
+      "1. Run Unicode probes to understand tokenizer behavior",
+      "2. Identify consistently tokenized characters",
+      "3. Test those characters as token proxies", 
+      "4. Validate proxy accuracy across models",
+      "5. Refine based on tokenizer behavior insights"
+    ],
+    "enhanced_proxy_selection": "Choose proxy characters based on tokenizer reverse engineering insights"
+  }
+}

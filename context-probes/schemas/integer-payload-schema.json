@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://powershell-central.dev/schemas/integer-payload.json",
+  "title": "Integer Payload Schema", 
+  "description": "Schema for integer payload JSON files fed to LLMs",
+  "type": "object",
+  "patternProperties": {
+    "^[0-9]+$": {
+      "type": "integer",
+      "description": "Line number as key, integer as value"
+    }
+  },
+  "additionalProperties": false,
+  "minProperties": 1,
+  "maxProperties": 10000
+}

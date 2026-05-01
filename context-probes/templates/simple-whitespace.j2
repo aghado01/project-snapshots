@@ -1,0 +1,6 @@
+{# Simple Whitespace Payload Template - Clean JSON for LLM consumption #}
+{
+  {%- for line in payload_lines %}
+  "{{ line.number }}": "{{ line.content }}"{% if not loop.last %},{% endif %}
+  {%- endfor %}
+}

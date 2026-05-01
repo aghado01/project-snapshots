@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://powershell-central.dev/schemas/whitespace-payload.json",
+  "title": "Whitespace Payload Schema",
+  "description": "Schema for whitespace string payload JSON files fed to LLMs",
+  "type": "object",
+  "patternProperties": {
+    "^[0-9]+$": {
+      "type": "string",
+      "description": "Line number as key, whitespace string as value"
+    }
+  },
+  "additionalProperties": false,
+  "minProperties": 1,
+  "maxProperties": 10000
+}

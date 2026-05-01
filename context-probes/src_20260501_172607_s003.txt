@@ -1,0 +1,2 @@
+idx<int> | path<str> | attributes:{char_count<int> word_count<int> whitespace_ratio<float> entropy<float>} | length<int> | content<str> |
+5 | templates/simple-whitespace.j2 | {206 35 0.1942 4.6159} | 215 | {# Simple Whitespace Payload Template - Clean JSON for LLM consumption #}\n{\n  {%- for line in payload_lines %}\n  \"{{ line.number }}\": \"{{ line.content }}\"{% if not loop.last %},{% endif %}\n  {%- endfor %}\n} |
