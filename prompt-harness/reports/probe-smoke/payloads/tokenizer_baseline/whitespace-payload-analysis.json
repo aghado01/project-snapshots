@@ -1,0 +1,12 @@
+{
+  "payload_type": "whitespace",
+  "line_count": 3,
+  "total_json_bytes": 42,
+  "payload_only_bytes": 6,
+  "json_overhead_bytes": 36,
+  "overhead_ratio": 0.8571428571428571,
+  "overhead_percentage": 85.71,
+  "payload_efficiency": 14.29,
+  "validation_errors": [],
+  "render_mode": "template"
+}

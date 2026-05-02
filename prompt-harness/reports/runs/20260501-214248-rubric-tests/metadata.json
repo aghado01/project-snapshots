@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "run_id": "20260501-214248-rubric-tests",
+  "name": "rubric-tests",
+  "repo_root": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness",
+  "script_path": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\scripts\\run_tests.ps1",
+  "arguments": [
+    "-PytestArgs",
+    "tests/unit/test_rubric_engine.py",
+    "-q"
+  ],
+  "run_dir": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214248-rubric-tests",
+  "stdout_log": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214248-rubric-tests\\stdout.log",
+  "stderr_log": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214248-rubric-tests\\stderr.log",
+  "created_utc": "2026-05-02T01:42:48.1286648Z"
+}

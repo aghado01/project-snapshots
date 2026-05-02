@@ -1,0 +1,5 @@
+id,model,latency_ms,input_tokens,output_tokens,cit_f1,grounding_score,consistency_similarity,rubric_mean,error
+if_retention_python_list,echo-small,29.133800009731203,146,32,,,,0.4,
+if_versioned_release_notes,echo-small,27.048499992815778,108,33,,,,0.5175,
+if_coherence_itinerary_state,echo-small,39.91449999739416,104,34,,,,0.48,
+if_robustness_private_phrase,echo-small,30.7055000012042,118,31,,,,0.7667,

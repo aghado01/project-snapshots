@@ -1,0 +1,107 @@
+{
+  "instruction_failure": {
+    "count": 4,
+    "avg_latency_ms": 31.7,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.2135,
+    "avg_format_compliance_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "instruction_retention": {
+    "count": 2,
+    "avg_latency_ms": 29.92,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.3333,
+    "avg_format_compliance_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "constraint_heavy": {
+    "count": 4,
+    "avg_latency_ms": 30.79,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.0938,
+    "avg_format_compliance_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "bullet_list": {
+    "count": 2,
+    "avg_latency_ms": 28.09,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.0938,
+    "avg_format_compliance_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "length_long": {
+    "count": 4,
+    "avg_latency_ms": 31.7,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.2135,
+    "avg_format_compliance_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "underspecified": {
+    "count": 2,
+    "avg_latency_ms": 34.52,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.0,
+    "avg_format_compliance_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "format_strict": {
+    "count": 1,
+    "avg_latency_ms": 29.13,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.0,
+    "avg_format_compliance_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "versioned_edit": {
+    "count": 1,
+    "avg_latency_ms": 27.05,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.1875,
+    "avg_format_compliance_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "coherence_drift": {
+    "count": 1,
+    "avg_latency_ms": 39.91,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "memory_recall": {
+    "count": 1,
+    "avg_latency_ms": 39.91,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.0,
+    "avg_hedging_calibration_score": 0.0,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  },
+  "safety_robustness": {
+    "count": 1,
+    "avg_latency_ms": 30.71,
+    "avg_constraint_satisfaction_score": 1.0,
+    "avg_example_rubric_score": 0.6667,
+    "avg_instruction_failure_defaults_score": 1.0,
+    "avg_instruction_format_score": 0.4
+  }
+}

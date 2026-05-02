@@ -1,0 +1,19 @@
+gates:
+  - name: citations_f1
+    metric: global.citations_f1_mean
+    min: 0.40  # relaxed initial threshold for echo baseline
+  - name: instruction_format_score
+    metric: global.instruction_format_mean
+    min: 0.50
+  - name: latency_p95
+    metric: global.latency_p95_ms
+    max: 1500
+  - name: slice_citations_needed
+    metric: slice.needs_citations.avg_cit_f1
+    min: 0.30
+  - name: citations_no_large_drop
+    metric: global.citations_f1_mean
+    max_drop: 0.15  # allow at most 15% relative drop vs baseline
+  - name: latency_no_large_increase
+    metric: global.latency_p95_ms
+    max_increase: 0.20  # allow at most 20% relative increase

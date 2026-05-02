@@ -1,0 +1,12 @@
+mercury_gates:
+  rubric_format:
+    - all_criteria_true_false_descriptive
+    - minimum_3_custom_criteria
+    - no_command_language
+  conversation:
+    - no_system_user_contradiction
+    - 5_to_20_turns
+    - target_instruction_following_not_knowledge
+  submission:
+    - golden_passes_all_rubric_criteria
+    - daily_limit_3_until_first_acceptances

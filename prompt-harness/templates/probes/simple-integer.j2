@@ -1,0 +1,6 @@
+{# Integer payload template. Intentionally raw: do not JSON-escape content. #}
+{
+  {%- for line in payload_lines %}
+  "{{ line.number }}": {{ line.content }}{% if not loop.last %},{% endif %}
+  {%- endfor %}
+}

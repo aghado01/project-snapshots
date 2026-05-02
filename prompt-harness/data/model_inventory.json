@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generated_utc": "2026-05-02T01:48:23.0424763Z",
+  "model_root": "D:\\models\\gguf",
+  "count": 4,
+  "models": [
+    {
+      "id": "Nemotron-3-Nano-4B-UD_Q5_K_XL",
+      "name": "Nemotron-3-Nano-4B-UD_Q5_K_XL.gguf",
+      "path": "D:\\models\\gguf\\Nemotron-3-Nano-4B-UD_Q5_K_XL.gguf",
+      "family": "nemotron",
+      "quantization": "Q5_K_XL",
+      "size_bytes": 3311437856,
+      "modified_utc": "2026-05-02T00:51:30.1049206Z",
+      "sha256": null,
+      "provider_hint": "llama_cpp",
+      "local_only": true
+    },
+    {
+      "id": "Nemotron3-Nano-4B-Un-IQ4_XS",
+      "name": "Nemotron3-Nano-4B-Un-IQ4_XS.gguf",
+      "path": "D:\\models\\gguf\\Nemotron3-Nano-4B-Un-IQ4_XS.gguf",
+      "family": "nemotron",
+      "quantization": "IQ4_XS",
+      "size_bytes": 2414371872,
+      "modified_utc": "2026-05-01T19:19:05.9245839Z",
+      "sha256": null,
+      "provider_hint": "llama_cpp",
+      "local_only": true
+    },
+    {
+      "id": "Nemotron3-Nano-4B-Un-Q5_K_M",
+      "name": "Nemotron3-Nano-4B-Un-Q5_K_M.gguf",
+      "path": "D:\\models\\gguf\\Nemotron3-Nano-4B-Un-Q5_K_M.gguf",
+      "family": "nemotron",
+      "quantization": "Q5_K_M",
+      "size_bytes": 3092412704,
+      "modified_utc": "2026-05-01T19:08:29.3907566Z",
+      "sha256": null,
+      "provider_hint": "llama_cpp",
+      "local_only": true
+    },
+    {
+      "id": "qwen2.5-3b-instruct-q4_k_m",
+      "name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "path": "D:\\models\\gguf\\qwen2.5-3b-instruct-q4_k_m.gguf",
+      "family": "qwen",
+      "quantization": "Q4_K_M",
+      "size_bytes": 2104932768,
+      "modified_utc": "2026-04-29T01:17:56.8287683Z",
+      "sha256": null,
+      "provider_hint": "llama_cpp",
+      "local_only": true
+    }
+  ]
+}

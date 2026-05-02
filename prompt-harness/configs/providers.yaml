@@ -1,0 +1,24 @@
+default_model: echo-small
+providers:
+  - name: echo
+    model: echo-small
+    model_tags: [deterministic, ci]
+
+  # Local OpenAI-compatible endpoint. Keep echo as the default for CI, then
+  # select llama.cpp explicitly for local GGUF experiments.
+  - name: llama_cpp
+    type: openai_compatible
+    model: local-model
+    base_url: http://localhost:8080/v1
+    timeout_s: 180
+    # Add model-specific tags here when selecting a GGUF, e.g. [local, nemotron, aligned]
+    # or [local, nemotron, abliterated] depending on the actual variant in use.
+    model_tags: [local]
+
+  # Hosted OpenAI-compatible APIs can share the same adapter.
+  - name: deepseek
+    type: openai_compatible
+    model: deepseek-chat
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    timeout_s: 120

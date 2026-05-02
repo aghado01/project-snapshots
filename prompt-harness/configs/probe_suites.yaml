@@ -1,0 +1,16 @@
+suites:
+  tokenizer_baseline:
+    description: "Line-indexed whitespace and integer payload probes for context-window/tokenizer baselines."
+    payload_out: data/probe_payloads/tokenizer_baseline
+    prompts_out: data/prompts/context_probes/tokenizer_baseline.jsonl
+    render_mode: template
+    notes:
+      - "Template rendering is intentional: malformed JSON strings can be part of the probe surface."
+
+  unicode_recon:
+    description: "Unicode, BPE merge, boundary, and minimal-pair tokenizer reconnaissance probes."
+    payload_out: data/probe_payloads/unicode_recon
+    prompts_out: data/prompts/context_probes/unicode_recon.jsonl
+    render_mode: structured
+    notes:
+      - "Unicode payloads preserve actual characters with ensure_ascii=false."

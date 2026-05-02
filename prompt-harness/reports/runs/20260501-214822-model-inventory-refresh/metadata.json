@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "run_id": "20260501-214822-model-inventory-refresh",
+  "name": "model-inventory-refresh",
+  "repo_root": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness",
+  "script_path": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\scripts\\refresh_model_inventory.ps1",
+  "arguments": [],
+  "run_dir": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214822-model-inventory-refresh",
+  "stdout_log": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214822-model-inventory-refresh\\stdout.log",
+  "stderr_log": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214822-model-inventory-refresh\\stderr.log",
+  "created_utc": "2026-05-02T01:48:22.5631871Z"
+}

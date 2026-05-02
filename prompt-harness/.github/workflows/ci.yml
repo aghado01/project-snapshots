@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.6"
+      - name: Install deps
+        shell: pwsh
+        run: |
+          ./scripts/python.ps1 -m pip install --upgrade pip
+          ./scripts/python.ps1 -m pip install -r requirements-dev.txt
+      - name: Run tests
+        shell: pwsh
+        run: |
+          ./scripts/run_tests.ps1
+      - name: Run baseline (cached)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path reports/baseline-ci -Force | Out-Null
+          ./scripts/python.ps1 -m src.runners.batch --out reports/baseline-ci --prompts data/prompts --config configs/providers.yaml
+      - name: Run candidate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path reports/candidate-ci -Force | Out-Null
+          ./scripts/python.ps1 -m src.runners.batch --out reports/candidate-ci --prompts data/prompts --config configs/providers.yaml
+      - name: Gates compare
+        shell: pwsh
+        run: |
+          ./scripts/python.ps1 -m src.runners.compare --baseline reports/baseline-ci --candidate reports/candidate-ci --gates configs/gates.yaml

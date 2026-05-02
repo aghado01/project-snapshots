@@ -1,0 +1,7 @@
+{
+  "arguments": [
+    "-PytestArgs",
+    "tests/unit/test_rubric_engine.py",
+    "-q"
+  ]
+}

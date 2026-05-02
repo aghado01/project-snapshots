@@ -1,0 +1,88 @@
+rubrics:
+  - name: instruction_format
+    weights:
+      follows_format: 0.6
+      answers_question: 0.4
+    criteria:
+      follows_format:
+        type: regex
+        pattern: '^(?:[-*]|\d+\.)\s'
+      answers_question:
+        type: keyword_presence
+        min_keywords: 1
+
+  - name: constraint_satisfaction
+    weights:
+      prompt_term_coverage: 0.5
+      avoids_placeholder_refusal: 0.5
+    criteria:
+      prompt_term_coverage:
+        type: keyword_presence
+        min_keywords: 2
+      avoids_placeholder_refusal:
+        type: negative_constraint
+        forbidden_terms:
+          - "as an ai language model"
+          - "i cannot browse"
+          - "i can't browse"
+
+  - name: format_compliance
+    active_on_slices:
+      - format_specific
+      - numbered_list
+      - bullet_list
+      - table_format
+      - single_paragraph
+      - categorized_list
+    criteria:
+      numbered_list:
+        type: format_compliance
+        format: numbered_list
+        active_on_slices: [numbered_list]
+      bullet_list:
+        type: format_compliance
+        format: bullet_list
+        active_on_slices: [bullet_list]
+      table:
+        type: format_compliance
+        format: table
+        active_on_slices: [table_format]
+      single_paragraph:
+        type: format_compliance
+        format: single_paragraph
+        active_on_slices: [single_paragraph]
+      generic_list:
+        type: format_compliance
+        format: list
+        active_on_slices: [format_specific, categorized_list]
+
+  - name: hedging_calibration
+    active_on_slices:
+      - ambiguous
+      - underspecified
+      - extremely_vague
+      - assumptions_required
+    criteria:
+      calibrated_uncertainty:
+        type: hedging_calibration
+
+  - name: instruction_failure_defaults
+    active_on_slices:
+      - instruction_failure
+    criteria:
+      non_empty_answer:
+        type: regex
+        pattern: '\S'
+      no_instruction_meta_commentary:
+        type: negative_constraint
+        forbidden_terms:
+          - "as requested"
+          - "as instructed"
+          - "according to your instructions"
+          - "i followed the instructions"
+      avoids_placeholder_refusal:
+        type: negative_constraint
+        forbidden_terms:
+          - "as an ai language model"
+          - "i cannot browse"
+          - "i can't browse"

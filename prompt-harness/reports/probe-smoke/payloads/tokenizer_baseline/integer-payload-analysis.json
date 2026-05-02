@@ -1,0 +1,12 @@
+{
+  "payload_type": "integer",
+  "line_count": 3,
+  "total_json_bytes": 33,
+  "payload_only_bytes": 3,
+  "json_overhead_bytes": 30,
+  "overhead_ratio": 0.9090909090909091,
+  "overhead_percentage": 90.91,
+  "payload_efficiency": 9.09,
+  "validation_errors": [],
+  "render_mode": "template"
+}

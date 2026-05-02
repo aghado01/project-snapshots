@@ -1,0 +1,94 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Python: Ensure Local Venv",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/start_background_run.ps1",
+				"-Name",
+				"ensure-venv",
+				"-ScriptPath",
+				"scripts/ensure_venv.ps1"
+			],
+			"group": "build",
+			"problemMatcher": [],
+			"isBackground": false
+		},
+		{
+			"label": "Python: Run Tests",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/start_background_run.ps1",
+				"-Name",
+				"tests",
+				"-ScriptPath",
+				"scripts/run_tests.ps1"
+			],
+			"group": "test",
+			"problemMatcher": [],
+			"isBackground": false
+		},
+		{
+			"label": "Models: Refresh GGUF Inventory",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/start_background_run.ps1",
+				"-Name",
+				"model-inventory",
+				"-ScriptPath",
+				"scripts/refresh_model_inventory.ps1"
+			],
+			"problemMatcher": [],
+			"isBackground": false
+		},
+		{
+			"label": "Probes: Generate Payloads",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/start_background_run.ps1",
+				"-Name",
+				"probe-generation",
+				"-ScriptPath",
+				"scripts/generate_probe_payloads.ps1",
+				"-EnsureVenv"
+			],
+			"problemMatcher": [],
+			"isBackground": false
+		},
+		{
+			"label": "Automation: Latest Background Run Status",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts/get_background_run.ps1"
+			],
+			"problemMatcher": [],
+			"isBackground": false
+		}
+	]
+}

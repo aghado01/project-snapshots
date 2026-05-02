@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "run_id": "20260501-214436-rubric-tests",
+  "name": "rubric-tests",
+  "state": "completed",
+  "pid": 1324,
+  "exit_code": 0,
+  "created_utc": "2026-05-02T01:44:36.7763504Z",
+  "started_utc": "2026-05-02T01:44:37.0971870Z",
+  "finished_utc": "2026-05-02T01:44:38.6864524Z",
+  "status_utc": "2026-05-02T01:44:38.6868900Z",
+  "run_dir": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214436-rubric-tests",
+  "stdout_log": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214436-rubric-tests\\stdout.log",
+  "stderr_log": "C:\\Users\\azrie\\PDenv\\UserGithub\\PowerShellCore\\pet-projects\\prompt-harness\\reports\\runs\\20260501-214436-rubric-tests\\stderr.log",
+  "error": ""
+}
