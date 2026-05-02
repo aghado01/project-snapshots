@@ -90,3 +90,10 @@ prompt-harness
             slice_summary.py	s005	32048	32121	32125	32872
     prompt-harness.code-workspace	s001	8605	8668	8672	9128
 ```
+Supplementary files:
+AGENTS.md
+CHANGELOG.md
+pytest.ini
+README.md
+TODO.md
+WALKTHROUGH.md
