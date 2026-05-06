@@ -1,6 +1,30 @@
 # Changelog
 
-## 2026-05-01 - SPC Runtime Project Split
+## 2026-05-03 - LinearAlgebra Primitive Extraction and GMM API Completion
+
+### Added
+
+- **`CholeskyDecomposition`** (`src/linalg/CholeskyDecomposition.cs`, namespace `LinearAlgebra`): Standalone reusable Cholesky primitive. Single allocation per component; `Decompose` recomputes L, L⁻¹, `LogDet`, and Σ⁻¹ in-place without heap allocation. Exposes `WriteInverseTo(target)` and `Sample(rng, mean)` (Box-Muller, uses L). Includes a 1e-12 diagonal floor to guard near-singular matrices.
+- **`LinearAlgebra` project** (`projects/LinearAlgebra/LinearAlgebra.csproj`): Standalone project, no dependencies. Globs `src/linalg/*.cs`.
+- **`GaussianMixture` project** (`projects/GaussianMixture/GaussianMixture.csproj`): Compiles `src/gmm/*.cs` under assembly `GaussianMixture`, namespace `StatisticalEstimators`. References `LinearAlgebra` and `DistanceMetrics`. Both projects added to `ps.core.pwshspc.sln` and nested under the `projects` solution folder.
+- **`GaussianMixtureModel.RandomInitialize`** (`src/gmm/GaussianMixtureModel.cs`): Cold-start fallback called automatically from `FitCore` when `_isInitialized` is false. Partial Fisher-Yates picks K distinct rows as initial means; initial covariance is diagonal with Bessel-corrected per-dimension sample variance plus a 1e-6 floor; weights are uniform. Equivalent to MATLAB `fitgmdist(..., 'Start', 'randSample')`.
+- **`GaussianMixtureModel.NumIterations`** (`src/gmm/GaussianMixtureModel.cs`): Tracks actual EM iterations performed per `Fit` call.
+- **`GaussianMixtureModel.Pdf`** (`src/gmm/GaussianMixtureModel.cs`): Returns `double[]` of mixture density values Y[i] = Σ_k π_k · N(x_i | μ_k, Σ_k). Analogous to MATLAB `pdf(obj, X)`.
+- **`GaussianMixtureModel.Mahal`** (`src/gmm/GaussianMixtureModel.cs`): Returns `double[n, K]` of squared Mahalanobis distances. Analogous to MATLAB `mahal(obj, X)`.
+- **`GaussianMixtureModel.Sample`** (`src/gmm/GaussianMixtureModel.cs`): Draws n samples from the mixture. Multinomial component draw via weight CDF; each point drawn via `GaussianComponent.Sample`. Optional `componentIndices` out array. Analogous to MATLAB `random(obj, N)`.
+- **`GaussianComponent.MahalanobisSquared`** (`src/gmm/GaussianComponent.cs`): Public surface for per-component D² = (x−μ)ᵀ Σ⁻¹ (x−μ); delegates to `Mahalanobis.DistanceSquared`.
+- **`GaussianComponent.Sample`** (`src/gmm/GaussianComponent.cs`): Delegates to `CholeskyDecomposition.Sample`.
+
+### Changed
+
+- **`GaussianComponent` Cholesky ownership** (`src/gmm/GaussianComponent.cs`): Private `_choleskyL` / `_choleskyLInv` arrays removed. Component now holds a `CholeskyDecomposition _chol` instance. `UpdateCache` delegates decomposition, inverse, and `LogDet` to it. Docstring updated to remove stale Cholesky field reference.
+- **`Mahalanobis.Distance` refactor** (`src/metrics/Mahalanobis.cs`): Inner kernel renamed from `MahalanobisCore` to `QuadraticFormCore`; returns the raw quadratic form (no sqrt). `Distance` wraps it with `Math.Sqrt`. New `DistanceSquared` public overload returns D² directly — avoids the sqrt when squared distance is sufficient (e.g. log-pdf evaluation, Mahal surface). Dispatch logic extracted to `DispatchQuadraticForm` for reuse by both public methods.
+
+### Notes
+
+- GMM project registration resolves the orphaned `src/gmm/` source files that were previously unlinked from any `.csproj`.
+- `GaussianMixture.csproj` uses namespace `StatisticalEstimators` to preserve compatibility with existing call sites; assembly name is `GaussianMixture`.
+- Deferred: diagonal covariance mode, `SharedCovariance`, configurable regularisation value, multiple replicates (`'Replicates'` style), AIC/BIC, CDF.
 
 ### Added
 
