@@ -1,5 +1,64 @@
 # Changelog
 
+## 2026-05-07 - VizCore: JSON Export Renderer, Naive Gaussian Overlay, CrescentEllipsoid v2 Fixes
+
+### Added
+
+- **`JsonExportRenderTarget`** (`src/viz-core/serializer.cs`, namespace `Viz.Renderers`): New `IRenderTarget` implementation that serialises a `ScenePackage` to a schema-versioned JSON snapshot (`schema_version: 1`). All layer arrays are flat row-major with explicit `*_shape` fields. Enums are serialised as strings via `JsonStringEnumConverter`. `[JsonIgnoreCondition.WhenWritingNull]` keeps absent layers out of the output. Constructor: `JsonExportRenderTarget(bool compact = false)` — selects between indented (dev/readable) and compact (automation/diffing) output. Both `JsonSerializerOptions` instances are static; no per-call allocation. Registered in `projects/VizCore/VizCore.csproj`.
+- **Naive Gaussian overlay in `SyntheticDatasetAdapter`** (`src/viz-core/adapter.cs`): `BuildNaiveGaussianLayer` method added. For each `ArcGeometry` cluster that has a non-null `ClusterCovariances[i]` entry (populated by `CrescentEllipsoid.BuildCrescentApproxCovariance`), emits a `GaussianLayer` named `"Naive Gaussian (misleading)"` — the diagonal Gaussian a naive single-component fit would report for a crescent cluster. Intended to be rendered alongside the analytic ground-truth ellipsoid to visualise the misleading shape. Helpers added: `ComputeClusterMean` (iterates labels, averages matching feature rows), `ComputeClusterWeight` (fraction of points in cluster).
+
+### Fixed
+
+- **`CrescentEllipsoid` v2** (`src/synthetic/CrescentEllipsoid.cs`): Removed dead `scaleVec` block — the ternary `ellipsoidAxes[0] * gapScale == 0 ? ellipsoidAxes[0] : ellipsoidAxes[0]` always evaluated to the same value and the result was never passed to `BuildCovariance`.
+- **`CrescentEllipsoid` v2 nullable annotations** (`src/synthetic/CrescentEllipsoid.cs`): `double[] ellipsoidAxes = null`, `double[] ellipsoidCenter = null`, and `double[] ellipsoidEulerXYZ = null` corrected to `double[]?` to satisfy NRT analysis; eliminated three nullable-related warnings.
+
+### Notes
+
+- The naive Gaussian layer is opt-in via `CrescentEllipsoid` — it requires `BuildCrescentApproxCovariance` to have been called on the generator and its result stored in `SyntheticDataset.ClusterCovariances[clusterIdx]`. The adapter produces the layer only when that slot is non-null.
+- `JsonExportRenderTarget` is the intended handoff format between the offline C# pipeline and the browser client once a static artifact contract is defined (see `visualization-engine.md` §6.1 and `viz-core-architecture.md`).
+
+---
+
+## 2026-05-06 - VizCore: Layer Model, Scene Pipeline, and Three.js Renderer (Pass 1)
+
+### Added
+
+- **`INamedLayer` interface** (`src/viz-core/viz_core.cs`): Shared contract exposing `string Name { get; }` on all layer types. Enables type-safe generic filtering in `SceneBuilder.Filter<T where T : INamedLayer>` without `dynamic` dispatch. Applied to `LabelLayer`, `ScalarLayer`, `EdgeLayer`, `GaussianLayer`, and `SpineLayer`. `TemporalLabelSequence` is intentionally excluded — it is resolved once by direct name match rather than filtered into a collection.
+- **`PointCloud`** (`src/viz-core/viz_core.cs`): Invariant N×D point set (row-major `ReadOnlyMemory<double>`) with optional human label. Constructor completed.
+- **`LabelLayer`** (`src/viz-core/viz_core.cs`): Per-point integer label array with `LabelLayerKind` discriminator (`GroundTruth`, `SpinColor`, `EquilibriumCluster`, `GmmComponent`, `GmmCluster`, `Custom`). Constructor completed.
+- **`ScalarLayer`** (`src/viz-core/viz_core.cs`): Per-point double annotation (coherence, Mahalanobis, percolation arrival, responsibility, log-likelihood). Constructor added.
+- **`EdgeLayer`** (`src/viz-core/viz_core.cs`): Named sparse graph (src/dst/weight arrays) with optional `EdgeClusterSrc`/`EdgeClusterDst` GT annotations for false-bridge highlighting. Constructor added.
+- **`GaussianLayer`** (`src/viz-core/viz_core.cs`): K×D means, K×D×D covariances, K weights, optional `ComponentToClusterMap` for topology-aware GMM. Constructor added.
+- **`SpineLayer`** (`src/viz-core/viz_core.cs`): New layer type. Carries the clean generating curve/manifold (M×D `double[][]`) for a synthetic cluster as a named overlay, independent of the N-point cloud. Has `ClusterIdx`, `SpineLayerKind { Arc, Manifold }`, and optional `TangentBases`. Separate from `ScalarLayer` because it is a different-sized point set.
+- **`TemporalLabelSequence`** (`src/viz-core/viz_core.cs`): Named ordered list of `LabelLayer` frames along a `TemporalAxis` (Temperature, Iteration, Depth, Custom). Constructor added.
+- **`VizDataset`** (`src/viz-core/viz_core.cs`): Full seven-argument constructor added; `SpineLayers` property added as the sixth collection alongside labels, scalars, edges, Gaussians, and temporal sequences.
+- **`SceneDescriptor`** (`src/viz-core/scene_renderer.cs`): Named rendering configuration — per-layer-type active-name lists (null = all), active temporal sequence name, frame index, and `SceneRenderHints`.
+- **`SceneRenderHints`** (`src/viz-core/scene_renderer.cs`): Immutable render toggle flags: `ShowEdgeWeightsAsOpacity`, `ShowGaussianEllipsoids`, `ShowSpineOverlays`, `ShowTangentBases`, `OverlayComponentAndClusterColoring`, `AnnotateSpinColorVsEquilibrium`, `HighlightFalseBridges`.
+- **`ScenePackage`** (`src/viz-core/scene_renderer.cs`): Backend-agnostic intermediate with resolved active layer lists and render hints. Full nine-argument constructor.
+- **`SceneBuilder.Build`** (`src/viz-core/scene_renderer.cs`): Resolves a `SceneDescriptor` against a `VizDataset` — filters each layer collection by active-name set (or passes all through when null), resolves the active `TemporalLabelSequence` and frame index, returns a `ScenePackage`.
+- **`SceneBuilder.Filter<T>`** (`src/viz-core/scene_renderer.cs`): Type-safe `where T : INamedLayer` generic; replaced the previous `dynamic` dispatch pattern.
+- **`IRenderTarget`** (`src/viz-core/scene_renderer.cs`): `void Render(ScenePackage scene, Stream output)` — backend contract.
+- **`ThreeJsHtmlRenderTarget`** (`src/viz-core/html_render_target.cs`): Self-contained single-file HTML renderer. Inlines point positions (Float32 downcast) and per-point colors as JSON. Uses Three.js r160 via an importmap + `<script type="module">` pattern (no bundler required, works in all modern browsers). Pass 1 implements: OrbitControls orbit/pan/zoom, auto-fit to bounding sphere, 12-color qualitative palette with deterministic overflow hash for K > 12, cluster legend with counts, `depthWrite: false` on point material for future overlay compatibility.
+- **`IVizDatasetAdapter<TSource>`** (`src/viz-core/adapter.cs`): Generic adapter interface.
+- **`SyntheticDatasetAdapter`** (`src/viz-core/adapter.cs`): Adapts a `SyntheticDataset` into a `VizDataset`. Produces: `PointCloud`, `LabelLayer[GroundTruth]`, `GaussianLayer[GT Ellipsoids]` from `EllipsoidGeometry` entries (analytic covariances, empirical weights), and `SpineLayer` entries from `ArcGeometry` and `ManifoldGeometry`. Does not produce `EdgeLayer` — metric and proximity rule choices belong to the diagnostic harness.
+- **`VizCore` project** (`projects/VizCore/VizCore.csproj`): Class library compiling all four `src/viz-core/*.cs` files; references `SyntheticDatasets`.
+- **`VizCoreSmoke` project** (`projects/VizCoreSmoke/VizCoreSmoke.csproj`, `Program.cs`): Executable smoke test wiring the full pipeline: `GenerateCrescentAndEllipsoid` → `SyntheticDatasetAdapter` → `SceneBuilder` → `ThreeJsHtmlRenderTarget` → `~/viz-smoke.html`.
+- Both projects registered in `ps.core.pwshspc.sln`.
+
+### Fixed
+
+- **Three.js CDN**: Downgrade to r128 (which had UMD controls) was reverted. The correct fix is the importmap + ES module pattern targeting r160 — `OrbitControls` is now imported as a named ES module rather than accessed via `THREE.OrbitControls` on a global.
+- **`SceneBuilder.Filter<T>`**: Replaced `(item as dynamic).Name` with `item.Name` after adding `INamedLayer`; eliminates a runtime binding failure under AOT-unfriendly configurations.
+- **`VizDataset` constructor**: Was absent in initial draft; added. `SceneBuilder.Build` was calling `dataset.SpineLayers` which did not exist.
+
+### Notes
+
+- `TemporalLabelSequence` does not implement `INamedLayer` by design — it participates in a direct name-match lookup, not the typed filter contract.
+- `GaussianLayer` for the crescent cluster is intentionally absent from `SyntheticDatasetAdapter` output — a single Gaussian cannot faithfully represent a crescent. Callers wanting a fitted ellipsoid for diagnostic comparison should add it separately.
+- Pass 2 of the renderer (edge lines, Gaussian ellipsoid meshes, spine curve overlays, temporal scrubbing) is deferred pending a `ThreeJsHtmlRenderTarget` extension pass.
+
+---
+
 ## 2026-05-03 - LinearAlgebra Primitive Extraction and GMM API Completion
 
 ### Added

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>StatisticalEstimators</RootNamespace>
+    <AssemblyName>StatisticalEstimators</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\estimators\*.cs" Link="estimators\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

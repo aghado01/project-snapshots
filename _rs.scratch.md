@@ -4,7 +4,7 @@
 #Ignore workflow
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 
-$target = "D:\matlab\toolchest"
+$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.pwshspc\src"
 $target = $target -Replace '\\', '/'
 $shardsize = 32768
 $strategy = "FileLevel"

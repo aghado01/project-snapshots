@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Viz</RootNamespace>
+    <AssemblyName>VizCore</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\viz-core\viz_core.cs"           Link="viz-core\viz_core.cs" />
+    <Compile Include="..\..\src\viz-core\scene_renderer.cs"     Link="viz-core\scene_renderer.cs" />
+    <Compile Include="..\..\src\viz-core\html_render_target.cs" Link="viz-core\html_render_target.cs" />
+    <Compile Include="..\..\src\viz-core\serializer.cs"         Link="viz-core\serializer.cs" />
+    <Compile Include="..\..\src\viz-core\adapter.cs"            Link="viz-core\adapter.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SyntheticDatasets\SyntheticDatasets.csproj" />
+  </ItemGroup>
+</Project>

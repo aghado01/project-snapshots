@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SpcCore</RootNamespace>
+    <AssemblyName>SpcThermo</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\spc.thermo.cs" Link="spc.thermo.cs" />
+    <Compile Include="..\..\src\spc-thermo\*.cs" Link="spc-thermo\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpcCore\SpcCore.csproj" />
+  </ItemGroup>
+</Project>

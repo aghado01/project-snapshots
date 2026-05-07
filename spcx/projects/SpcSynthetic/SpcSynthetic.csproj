@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SpcCore</RootNamespace>
+    <AssemblyName>SpcSynthetic</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\spc.synthetic.cs" Link="spc.synthetic.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpcCore\SpcCore.csproj" />
+    <ProjectReference Include="..\SyntheticDatasets\SyntheticDatasets.csproj" />
+  </ItemGroup>
+</Project>

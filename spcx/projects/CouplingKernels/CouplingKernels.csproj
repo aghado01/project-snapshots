@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>CouplingKernels</RootNamespace>
+    <AssemblyName>CouplingKernels</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\kernels\*.cs" Link="kernels\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

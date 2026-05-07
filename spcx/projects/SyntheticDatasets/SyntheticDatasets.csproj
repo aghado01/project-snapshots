@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SyntheticDatasets</RootNamespace>
+    <AssemblyName>SyntheticDatasets</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\synthetic\*.cs" Link="synthetic\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

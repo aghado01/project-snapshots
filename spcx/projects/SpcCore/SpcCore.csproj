@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SpcCore</RootNamespace>
+    <AssemblyName>SpcCore</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\spc.batch.cs" Link="spc.batch.cs" />
+    <Compile Include="..\..\src\spc.checkpoint.cs" Link="spc.checkpoint.cs" />
+    <Compile Include="..\..\src\spc.graph.cs" Link="spc.graph.cs" />
+    <Compile Include="..\..\src\spc.potts.cs" Link="spc.potts.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DistanceMetrics\DistanceMetrics.csproj" />
+    <ProjectReference Include="..\ProximityGraphs\ProximityGraphs.csproj" />
+    <ProjectReference Include="..\CouplingKernels\CouplingKernels.csproj" />
+    <ProjectReference Include="..\StatisticalEstimators\StatisticalEstimators.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.0" />
+  </ItemGroup>
+</Project>
