@@ -1,12 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <RootNamespace>VizCoreSmoke</RootNamespace>
-    <AssemblyName>VizCoreSmoke</AssemblyName>
+    <RootNamespace>VizApi</RootNamespace>
+    <AssemblyName>VizApi</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\VizCore\VizCore.csproj" />
+    <ProjectReference Include="..\SyntheticDatasets\SyntheticDatasets.csproj" />
     <ProjectReference Include="..\ProximityGraphs\ProximityGraphs.csproj" />
   </ItemGroup>
 </Project>
