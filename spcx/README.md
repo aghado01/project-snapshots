@@ -75,7 +75,7 @@ projects/
 └── SyntheticDatasets/SyntheticDatasets.csproj # Standalone synthetic dataset primitive library
 
 src/
-├── gmm/ # GaussianMixture source: GaussianComponent, GaussianMixtureModel, ISpcShatterOracle
+├── gmm/ # GaussianMixture source: GaussianComponent, GaussianMixtureModel
 ├── linalg/ # LinearAlgebra source: CholeskyDecomposition
 ├── spc.batch.cs # SpcBatchRequest/Result DTOs, SpcCheckpoint carrier, SpcBatch.Run orchestration
 ├── spc.graph.cs # Edge/CsrGraph runtime topology, graph initialization, connectivity diagnostics

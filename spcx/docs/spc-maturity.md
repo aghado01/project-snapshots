@@ -75,11 +75,11 @@ The `SuperParamagneticClustering` outer model orchestrates an array of `PottsMod
 
 Collapse to one mechanism with two knobs (epoch granularity, supervisor coupling):
 
-| Mode | epoch_sweeps | Supervisor | Termination |
-|---|---|---|---|
-| **Eager** (default; classical online) | 1 | none — kernel reads its own running accumulators | sweep budget or in-loop convergence |
-| **Supervised** | configurable | in-process callback or out-of-process directory observer | supervisor decides at rendezvous, signaled via `supervisor/termination-signal/v1` artifact |
-| **Headless** | full run as one epoch | async / out-of-process post hoc | sweep budget; analysis post-mortem |
+| Mode                                  | epoch_sweeps          | Supervisor                                               | Termination                                                                                |
+| ------------------------------------- | --------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Eager** (default; classical online) | 1                     | none — kernel reads its own running accumulators         | sweep budget or in-loop convergence                                                        |
+| **Supervised**                        | configurable          | in-process callback or out-of-process directory observer | supervisor decides at rendezvous, signaled via `supervisor/termination-signal/v1` artifact |
+| **Headless**                          | full run as one epoch | async / out-of-process post hoc                          | sweep budget; analysis post-mortem                                                         |
 
 `Fit(steps)` is eager by default. `Fit(steps, supervisor)` runs supervised. Headless is supervised with the supervisor decoupled in time.
 
@@ -90,19 +90,22 @@ The supervisor's termination signal is an artifact (when state engine is wired) 
 The kernel always runs O(N)-per-sweep accumulators regardless of mode. They are essentially free given the simulation's existing per-sweep cost.
 
 **Always on:**
+
 - Bond-cluster size moments (the FK χ accumulator).
 - Cluster-size histogram bins.
 - Running cluster count.
 
 **Configurable on (modest cost):**
+
 - Equilibrium correlation matrix accumulator (sparse, optional, only on if `EquilibriumCorrelation = true` in run config; quadratic in N for large data).
 
 **Always off in the kernel; supervisor or post-hoc only:**
+
 - Fan-out KL.
 - Cross-T peak detection.
 - Anything requiring multiple temperatures' state simultaneously.
 
-This is independent of supervision mode. Whether running values are *acted on* in real time is the supervisor's question; whether they are *computed* is the cost discipline's question.
+This is independent of supervision mode. Whether running values are _acted on_ in real time is the supervisor's question; whether they are _computed_ is the cost discipline's question.
 
 ## 6. Partial-temperature epoch contract
 
@@ -111,6 +114,7 @@ A partial-T epoch is a contiguous run of `epoch_sweeps` SW sweeps at one tempera
 ### 6.1 Resumable state per (model, T)
 
 Persistent across epoch boundaries:
+
 - **Spin array** `int[N]` — the only spin state needed to resume.
 - **Sweep counter within T** — cumulative completed sweeps.
 - **RNG state** — see §8.
@@ -118,6 +122,7 @@ Persistent across epoch boundaries:
 - **Equilibration phase marker** — `{burn-in, sampling}`. Affects whether sampled statistics are valid.
 
 Ephemeral (recomputed each sweep, never persisted):
+
 - Bond probability array (derived from `Graph.Weights` and `T`).
 - Union-find scratch state.
 - Cluster label / cluster map work arrays.
@@ -132,7 +137,7 @@ Three artifacts per (T, epoch) in supervised / headless modes:
 
 `is_complete = true` only on the final epoch of T. Partial epochs are `false`.
 
-Running accumulators are *snapshotted* into the summary at each boundary, not reset. The accumulator state stays in memory across epoch boundaries (eager case) or is carried in the resumable state blob (resume after a process restart). Per-epoch χ is derivable post-hoc as a running-cumulative difference.
+Running accumulators are _snapshotted_ into the summary at each boundary, not reset. The accumulator state stays in memory across epoch boundaries (eager case) or is carried in the resumable state blob (resume after a process restart). Per-epoch χ is derivable post-hoc as a running-cumulative difference.
 
 ### 6.3 Resume semantics
 
@@ -176,11 +181,11 @@ This decision is recorded as open until the implementation lands; nothing in the
 
 ## 9. Termination authority
 
-| Mode | Authority | Mechanism |
-|---|---|---|
-| Eager | SW kernel | Sweep budget reached, or in-loop convergence test triggers |
+| Mode       | Authority                      | Mechanism                                                                            |
+| ---------- | ------------------------------ | ------------------------------------------------------------------------------------ |
+| Eager      | SW kernel                      | Sweep budget reached, or in-loop convergence test triggers                           |
 | Supervised | Supervisor at epoch rendezvous | Returns termination signal, or publishes `supervisor/termination-signal/v1` artifact |
-| Headless | SW kernel | Sweep budget reached; supervisor analysis is post-mortem |
+| Headless   | SW kernel                      | Sweep budget reached; supervisor analysis is post-mortem                             |
 
 In supervised mode, the SW driver polls for the termination signal at every epoch rendezvous before advancing. This is a cooperative-cancellation interface with the same shape as the existing `CancellationToken` plumbing, just driven by a policy function instead of an external event.
 
@@ -211,6 +216,7 @@ The canonical Fortuin-Kasteleyn estimator is:
 where `c` ranges over actual bond-clusters from the SW union-find pass, averaged over equilibrium sweeps.
 
 Fix:
+
 - `FastUnionFind` exposes a non-allocating root-size enumeration: `WriteRootSizesTo(Span<int>) → int count`.
 - `PottsModel` accumulates `Σ |c|²` per sweep using that enumeration.
 - The accumulator is the source of `RunningSusceptibility` and the per-epoch `running_chi`.
@@ -225,6 +231,7 @@ Fix:
 `SpcBatchResult.FinalSpins[T]` is currently treated as "the clusters at T" by downstream code. It is actually an instantaneous snapshot of per-sweep colors and is only valid below T_c.
 
 Fix:
+
 - The model exposes both: `GetSpinSnapshot(T)` (the color view; honest about what it is) and `GetEquilibriumClusters(T, threshold)` (the connected components of the thresholded co-occurrence matrix; the proper cluster assignments).
 - Codec inventory in the state engine doc reflects this split: `spc/spin-observation/v3` is the SW-color view; `thermo/equilibrium-clusters/v1` is the cluster-assignment view.
 - Documentation strings on the SPC model surface call out which is which.
@@ -252,9 +259,10 @@ Mirroring the GMM zero-allocation pattern:
 Today `SpcBatchRequest` carries `SimHashes` / `Features` / `Documents` / `CovarianceInverse` polymorphically, and metric/proximity/kernel choices live on the request rather than on a model object. This is a smell: every `Fit` call carries data shape and metric choice together.
 
 Fix:
+
 - Metric, proximity, kernel become properties of `SuperParamagneticClustering`, set at construction.
 - `Fit` takes `double[][] features` (or `ulong[]` for SimHash) — uniform shape per metric.
-- The current `SpcBatchRequest` shape can survive as a *convenience wrapper* DTO that constructs a model and calls `Fit`, for callers who like the existing API surface, but it ceases to be the canonical entry.
+- The current `SpcBatchRequest` shape can survive as a _convenience wrapper_ DTO that constructs a model and calls `Fit`, for callers who like the existing API surface, but it ceases to be the canonical entry.
 
 This matches GMM's pattern: `Fit(double[][] data)` with model state already established.
 
@@ -283,17 +291,17 @@ Steps 1–6 can land entirely against the existing scaffolding. Step 7 merges th
 
 ## 16. Relationship to current code
 
-| Current | Becomes |
-|---|---|
-| [src/spc.batch.cs](../src/spc.batch.cs) `SpcBatch.Run` static entry | Thin convenience wrapper over `new SuperParamagneticClustering(...).Fit(features)` |
-| [src/spc.batch.cs](../src/spc.batch.cs) `SpcBatchRequest` polymorphism | Metric/proximity/kernel become model properties; `features` is uniform per metric |
-| [src/spc.potts.cs](../src/spc.potts.cs) `PottsModel.RunSimulation` | `PottsModel.Step()` (one sweep) + accumulator state on the instance |
-| [src/spc.potts.cs](../src/spc.potts.cs) `FastUnionFind` | Adds non-allocating `WriteRootSizesTo(Span<int>)` |
-| [src/spc-thermo/chi.cs](../src/spc-thermo/chi.cs) `ComputeSusceptibility(int[])` | Removed; FK accumulator on `PottsModel` provides the value |
-| [src/spc.thermo.cs](../src/spc.thermo.cs) `BuildHistograms` (label-bucketed) | Reframed as cluster-size histograms, sourced from accumulator |
-| `SpcBatchResult.FinalSpins[T]` | Stays for diagnostic access (color view); a separate `EquilibriumClusters[T]` exposes the cluster-assignment view |
-| `Parallel.For` over Ts in `RunSimulationCore` | Moves to `SuperParamagneticClustering.Fit`; configurable independent vs. synchronized |
-| `System.Random` in `PottsModel` | Replaced with stateful RNG (xoshiro256++ proposed) |
+| Current                                                                          | Becomes                                                                                                           |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [src/spc.batch.cs](../src/spc.batch.cs) `SpcBatch.Run` static entry              | Thin convenience wrapper over `new SuperParamagneticClustering(...).Fit(features)`                                |
+| [src/spc.batch.cs](../src/spc.batch.cs) `SpcBatchRequest` polymorphism           | Metric/proximity/kernel become model properties; `features` is uniform per metric                                 |
+| [src/spc.potts.cs](../src/spc.potts.cs) `PottsModel.RunSimulation`               | `PottsModel.Step()` (one sweep) + accumulator state on the instance                                               |
+| [src/spc.potts.cs](../src/spc.potts.cs) `FastUnionFind`                          | Adds non-allocating `WriteRootSizesTo(Span<int>)`                                                                 |
+| [src/spc-thermo/chi.cs](../src/spc-thermo/chi.cs) `ComputeSusceptibility(int[])` | Removed; FK accumulator on `PottsModel` provides the value                                                        |
+| [src/spc.thermo.cs](../src/spc.thermo.cs) `BuildHistograms` (label-bucketed)     | Reframed as cluster-size histograms, sourced from accumulator                                                     |
+| `SpcBatchResult.FinalSpins[T]`                                                   | Stays for diagnostic access (color view); a separate `EquilibriumClusters[T]` exposes the cluster-assignment view |
+| `Parallel.For` over Ts in `RunSimulationCore`                                    | Moves to `SuperParamagneticClustering.Fit`; configurable independent vs. synchronized                             |
+| `System.Random` in `PottsModel`                                                  | Replaced with stateful RNG (xoshiro256++ proposed)                                                                |
 
 ### 16.1 Current checkpoint on-disk shape (debt)
 
@@ -315,7 +323,7 @@ A first-class merge-tree artifact analogous to MATLAB's `linkage` `Z` matrix and
 
 Cheaply derivable from the equilibrium cooccurrence matrix (`thermo/cooccurrence-matrix/v1`) via single-linkage on `1 - cooccurrence`; merge heights correspond to the temperatures at which clusters become distinguishable. This is a supervisor-side artifact; the SW hot path does not need new instrumentation. Lands as the SPC-side `thermo/merge-tree/v1` codec (see [state-engine-design.md](./state-engine-design.md)) using the MATLAB `Z` layout so existing validation tooling works on both synthetic and real outputs.
 
-The tree carries the structural information that the chi profile alone does not: a susceptibility peak says *that* a transition happened at T*, the tree says *which clusters merged*. Without it, critical temperatures are scalars; with it, they are labeled events in a queryable dendrogram.
+The tree carries the structural information that the chi profile alone does not: a susceptibility peak says _that_ a transition happened at T*, the tree says *which clusters merged\*. Without it, critical temperatures are scalars; with it, they are labeled events in a queryable dendrogram.
 
 ### 17.2 `SpcClusterProfile` — per-cluster identity across temperatures
 
@@ -362,27 +370,50 @@ public sealed class SpcAnalysisReport
 
 ### 17.4 `SpcHandoff` — the SPC→GMM bridge DTO
 
-`ISpcShatterOracle` is correctly flagged as a placeholder until both engines mature. The intermediate primitive is a concrete handoff DTO that draws its initial conditions from the stable leaf profiles in §17.2, making the cut criterion explicit rather than implicit in whichever temperature happens to be chosen:
+`ISpcShatterOracle` is correctly flagged as a placeholder until both engines mature. The intermediate primitive is a concrete handoff DTO that draws its initial conditions from the stable leaf profiles in §17.2, making the cut criterion explicit rather than implicit in whichever temperature happens to be chosen. In the hybrid arc (Arc 3) the handoff fires at an **early-stop temperature** determined by core-estimate stability (see §17.7), not at the susceptibility peak:
 
 ```csharp
 public sealed class SpcHandoff
 {
-    public int       K { get; }
-    public double    Temperature { get; }
-    public int[]     CoreAssignments { get; }
-    public double[][]   InitialMeans { get; }
-    public double[][,]  InitialCovariances { get; }
+    public int          K { get; }
+    public double       Temperature { get; }        // T at which the early-stop fired; not the susceptibility peak
+    public int[]        CoreAssignments { get; }    // per-point hard labels for confident cores; -1 for unlabeled
+    public double[][]   InitialMeans { get; }       // K×D from confidence-thresholded RobustLeafEstimator — conservatively tight
+    public double[][,]  InitialCovariances { get; } // K×D×D — deliberately undersells cluster extent; EM expands outward
     public double[]     InitialWeights { get; }
+    public double[][]   PerPointConfidences { get; } // N×K matrix, sᵢₖ — co-clustering frequencies; input to IResponsibilityConstraint
 
-    public static SpcHandoff FromReport(SpcAnalysisReport report, double[][] features);
+    public static SpcHandoff FromReport(SpcAnalysisReport report, double[][] features,
+                                        double confidenceThreshold = 0.8);
 }
 ```
 
-The handoff carries topological identity *into* the GMM but the GMM is responsible for preserving it on the way back out. When a single SPC cluster is tiled by multiple Gaussian components (the recursive variant of [gmm-maturity-extentions.md](./gmm-maturity-extentions.md)), the GMM exposes a `ManifoldMixture` wrapper holding a `ComponentToClusterMap` that records which flat components belong to which `SpcClusterProfile.ClusterId`. The flat `GaussianMixtureModel` itself stays topology-blind; the wrapper closes the loop.
+The handoff carries two distinct payloads into the GMM. `InitialMeans` / `InitialCovariances` / `InitialWeights` seed `InitializeWithParameters` — the conservative bias in these estimates (produced from confidence-thresholded cores only) is intentional and produces a stable low-entropy initialization. `PerPointConfidences` feeds `IResponsibilityConstraint` in the E-step for the duration of the constrained EM run; it is not an initialization artifact and must not be discarded after warm-start. These are distinct lifecycles: initialization is one-time, the E-step constraint is per-iteration.
+
+When a single SPC cluster is tiled by multiple Gaussian components (the recursive variant of [gmm-maturity-extentions.md](./gmm-maturity-extentions.md)), the GMM exposes a `ManifoldMixture` wrapper holding a `ComponentToClusterMap` that records which flat components belong to which `SpcClusterProfile.ClusterId`. That map is populated by post-fit modal or entropy merging on the constrained-EM result — not by the oracle driving recursive splits. The flat `GaussianMixtureModel` itself stays topology-blind; the wrapper closes the loop.
 
 ### 17.5 Robust leaf estimation
 
-`WeightedGeometricMedian`, `ManifoldMedian`, and `SigmaEstimatorMad` in `src/estimators/` are the natural inputs for the GMM warm-start. The SW process puts both core points (high spin coherence, well inside the cluster) and boundary points (low coherence, ambiguous assignment) in the same leaf profile. Inverse-distance weighted scatter centered on the geometric median, with the inverse-distance weights modulated by `SpcClusterProfile.CoherenceProfile`, is the right combination — pure inverse distance upweights boundary points that happen to be spatially near the core, but coherence-weighted scatter encodes the thermodynamic stability signal directly.
+`WeightedGeometricMedian`, `ManifoldMedian`, and `SigmaEstimatorMad` in `src/estimators/` are the
+natural inputs for the GMM warm-start.
+
+In the **standalone SPC** arc the full leaf profile (core and boundary points together) informs
+coherence-weighted scatter: the SW process puts both core points (high spin coherence, well inside
+the cluster) and boundary points (low coherence, ambiguous assignment) in the same leaf profile.
+Inverse-distance weighted scatter centered on the geometric median, with the inverse-distance weights
+modulated by `SpcClusterProfile.CoherenceProfile`, is the right combination — pure inverse distance
+upweights boundary points that happen to be spatially near the core, but coherence-weighted scatter
+encodes the thermodynamic stability signal directly.
+
+In the **hybrid SPC→GMM** arc the labeled set for `(μₖ, Σₖ)` initialization is **first filtered
+to confidence-thresholded points** (`sᵢₖ > θ`, default `θ = 0.8`). Only these high-confidence core
+points feed the robust estimators. The resulting estimates are deliberately conservative — they
+undersell the true cluster extent because core points are systematically drawn from dense interior
+regions. This conservative bias is a feature: it produces a low-entropy initialization where unlabeled
+tail points are unambiguously far from any component mean and pull the covariance matrices outward
+cleanly during early EM iterations, avoiding the competing-component chaos of standard initialization.
+The remaining unlabeled (below-threshold) points are not discarded; they participate in the E-step
+normally as unconstrained rows in the responsibility matrix.
 
 ```csharp
 public sealed class RobustLeafEstimate
@@ -407,7 +438,48 @@ public static class RobustLeafEstimator
 
 `IRobustLocationEstimator` / `IRobustScatterEstimator` strategies let the same factory serve flat Euclidean features, product manifolds, and (later) full Riemannian charts without changing the call site. `IsDegenerate` is a first-class condition that routes to a regularized fallback (diagonal or shared covariance), not a regularization patch on the scatter matrix.
 
-### 17.6 Cross-package partition-cutting
+### 17.6 Partial sweep and early-stopping criterion (hybrid arc only)
+
+In the standalone SPC arc the full temperature sweep runs to the susceptibility peak — that is what
+the thermodynamic analysis (`GetSusceptibilityProfile`, `GetCriticalTemperatures`) requires.
+
+In the hybrid SPC→GMM arc the susceptibility peak is **not needed**. GMM's modal/entropy merge
+resolution takes over the cluster-count question after convergence. SPC needs only to sweep far
+enough that the dense-core estimates `(μₖ, Σₖ)` have stabilized. Core locking occurs _above_ the
+susceptibility peak, in the high-T disordered-but-correlated regime, and can be detected online:
+
+**Per-point entropy signal.** For each point `i` compute the entropy of its co-clustering frequency
+row: `Hᵢ = -Σₖ sᵢₖ log sᵢₖ`. Low entropy means the point has locked to one cluster. The stopping
+proxy monitors the mean entropy of the candidate core set (e.g. the top decile by maximum `sᵢₖ`).
+When that mean entropy drops below a threshold and stays there for `n_stable` consecutive temperature
+steps, the cores have locked.
+
+**Mahalanobis shift test.** The principled stopping criterion tests whether the per-cluster
+parameter estimate `μₖ` has stabilized between consecutive temperature steps, as a hypothesis test:
+
+$$T^2 = n_k \cdot \Delta\mu_k^\top \hat{\Sigma}_k^{-1} \Delta\mu_k \quad \sim \chi^2_{D,\, 1-\alpha}$$
+
+where `Δμₖ = μ̂ₖ^(T) - μ̂ₖ^(T-δT)` is the shift in the geometric-median estimate between steps,
+`nₖ` is the count of confidence-thresholded labeled points for cluster `k`, and `Σ̂ₖ` is the
+current scatter estimate. Stop when you fail to reject H₀ for all K clusters for `n_stable`
+consecutive temperature steps at significance level α. The Mahalanobis computation is already in
+the primitive stack; the test adds only a chi-squared quantile lookup and an accumulator for
+consecutive stable steps.
+
+**Medoid stability proxy.** The fastest heuristic: once the medoid identity (from
+`SpcClusterProfile.CoherenceProfile`) stops changing between consecutive temperature steps for all K
+clusters for `n_stable` steps, the cores have locked. Computable with no new machinery.
+
+**Recommended composition:** run the medoid stability check as a cheap in-loop gating condition;
+confirm stop with the Mahalanobis shift test. The entropy signal is an intermediate diagnostic.
+
+The `n_stable` guard (two or three consecutive steps) prevents stopping on a transient dip. The
+confidence threshold `θ` and significance level `α` on `FromReport` are the user-facing parameters
+that tune the tradeoff between labeled-set size and label quality, which flows directly into the
+initial λ on the downstream `IResponsibilityConstraint`: tighter `θ` → cleaner labels → higher
+initial λ is justified.
+
+### 17.7 Cross-package partition-cutting
 
 `SpcTreeMatrix` is one instance of a more general shape — an indexed sequence of partitions with a scoring axis (temperature here, BIC/depth for GMM, merge distance for hierarchical linkage). The general shape — `IPartitionSequence<TScore>`, `IPartitionCriterion<TScore>`, `CutResult`, `IClusterMembership` — is intentionally not part of `SpcCore`: it belongs in a future `Clustering` primitive that both SPC and GMM consume (see [project-primer.md](./project-primer.md)). SPC contributes the domain-specific criteria (`SusceptibilityPeakCriterion`, `KLDivergenceCriterion`, `FanOutCriterion`); the general criteria (`MaxK`, `Threshold`, `Elbow`) live in the shared layer.
 
@@ -417,15 +489,15 @@ The handoff between the two layers is `SpcTreeMatrix : IPartitionSequence<double
 
 A common reaction to SPC's "graph + clustering" framing is to identify it with spectral or diffusion-map clustering, which also build a graph and derive cluster structure from it. The methods are related at one limit but are not the same algorithm; recording the distinction so later readers don't conflate them.
 
-**Spectral and diffusion methods** build a fixed graph and derive a *deterministic* embedding from spectral properties of an operator on it (Laplacian for spectral; Markov-chain transition matrix for diffusion maps). Topology enters via the operator's spectrum — small Laplacian eigenvalues encode connectivity, eigenvectors expose connected components. The probabilistic structure of diffusion maps (random walks at fixed time t) is real but bounded: there is no sampling procedure, no exploration of an energy landscape, and no temperature parameter that exposes scale. The embedding dimension k is a hyperparameter the user sets.
+**Spectral and diffusion methods** build a fixed graph and derive a _deterministic_ embedding from spectral properties of an operator on it (Laplacian for spectral; Markov-chain transition matrix for diffusion maps). Topology enters via the operator's spectrum — small Laplacian eigenvalues encode connectivity, eigenvectors expose connected components. The probabilistic structure of diffusion maps (random walks at fixed time t) is real but bounded: there is no sampling procedure, no exploration of an energy landscape, and no temperature parameter that exposes scale. The embedding dimension k is a hyperparameter the user sets.
 
 **SPC** is an energy-based generative model over partitions. The Potts Hamiltonian H = -Σ J_ij δ(s_i, s_j) defines a Boltzmann distribution P(s | T) ∝ exp(-H/T) over the entire space of partition assignments, parameterized by T. Swendsen-Wang Monte Carlo samples from this distribution. Five things follow that have no spectral analog:
 
 1. **A full distribution over partitions, not a regularizer.** The partition function — what exact Bayesian inference on partitions would integrate over — is what SW samples from. The Laplacian quadratic form is a smoothness penalty, not a probability distribution.
 
-2. **Multi-scale structure discovered, not assumed.** A spectral method gives one topology, fixed by k. SPC produces a *family* of partition states across T, and the dynamics expose physically meaningful scales as a critical-adjacent regime — not a single point T_c but a goldilocks zone of temperatures where partition structure is informative for the dataset under the chosen graph + metric + kernel. Susceptibility peaks (FK estimator) are the classical first-pass signal, but they are one of several thermodynamic signatures: fan-out KL across temperature steps, Mahalanobis-based regime characterizations, cluster-count plateaus, and other signals can co-locate or differ across this band. With expanded graph constructions, distance metrics, and coupling kernels the precise shape of this regime is data-dependent and not collapsible to one number. The analysis layer in `src/spc-thermo/` (currently `chi.cs`, `kl.cs`, `mhbs.cs`) is intentionally extensible to additional thermodynamic analyses as the operating space grows; the framing here treats susceptibility as the canonical entry point, not the totality of what's available.
+2. **Multi-scale structure discovered, not assumed.** A spectral method gives one topology, fixed by k. SPC produces a _family_ of partition states across T, and the dynamics expose physically meaningful scales as a critical-adjacent regime — not a single point T_c but a goldilocks zone of temperatures where partition structure is informative for the dataset under the chosen graph + metric + kernel. Susceptibility peaks (FK estimator) are the classical first-pass signal, but they are one of several thermodynamic signatures: fan-out KL across temperature steps, Mahalanobis-based regime characterizations, cluster-count plateaus, and other signals can co-locate or differ across this band. With expanded graph constructions, distance metrics, and coupling kernels the precise shape of this regime is data-dependent and not collapsible to one number. The analysis layer in `src/spc-thermo/` (currently `chi.cs`, `kl.cs`, `mhbs.cs`) is intentionally extensible to additional thermodynamic analyses as the operating space grows; the framing here treats susceptibility as the canonical entry point, not the totality of what's available.
 
-3. **Stochastic dynamics that explore the configuration landscape.** Per-point coherence (how stably a label holds across sweeps) is a Monte-Carlo-derived measure of cluster-identity stability with no deterministic-eigendecomposition analog. This is what the GMM handoff downstream consumes — boundary points downweighted by `RobustLeafEstimator` (§17.5) are *thermodynamically* unstable, oscillating between basins, not just spatially ambiguous.
+3. **Stochastic dynamics that explore the configuration landscape.** Per-point coherence (how stably a label holds across sweeps) is a Monte-Carlo-derived measure of cluster-identity stability with no deterministic-eigendecomposition analog. This is what the GMM handoff downstream consumes — boundary points downweighted by `RobustLeafEstimator` (§17.5) are _thermodynamically_ unstable, oscillating between basins, not just spatially ambiguous.
 
 4. **Phase-transition semantics for identity.** Stable partitions in the goldilocks regime are metastable basins of a generative process — local minima of the system's effective potential — rather than connected components of a graph. The former is closer to a generative-model notion of "real cluster" than the latter, and the temperature scan exposes how that identity emerges (or fails to emerge) under the chosen graph prior.
 
