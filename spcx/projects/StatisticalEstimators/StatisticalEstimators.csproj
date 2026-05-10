@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>StatisticalEstimators</RootNamespace>
+    <AssemblyName>StatisticalEstimators</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\estimators\*.cs"  Link="estimators\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\manifolds\*.cs"   Link="manifolds\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\losses\*.cs"      Link="losses\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\optimization\*.cs" Link="optimization\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
