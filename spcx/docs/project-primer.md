@@ -17,15 +17,15 @@
 
 ## Doc map
 
-| Doc                                                        | Owns                                                                                                                                                                                                                                                     |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [project-primer.md](./project-primer.md) (this doc)        | Session orientation, design philosophy, working style, conventions, pitfalls                                                                                                                                                                             |
-| [spc-maturity.md](./spc-maturity.md)                       | SPC bespoke→primitive renovation: API shape, per-T primitive, execution modes, partial-T epoch contract, correctness items, analysis / tree / handoff layer                                                                                              |
-| [gmm-maturity-extentions.md](./gmm-maturity-extentions.md) | Hierarchical / nested / Bayesian / topology-aware GMM extensions; design rules for the recursive variant; aspirational boundary-representation track                                                                                                     |
-| [state-engine-design.md](./state-engine-design.md)         | General-purpose state / checkpoint engine: artifact log, codecs, streams, supervisor execution, codec inventory, on-disk layout, debt list                                                                                                               |
-| [clustering-primitive.md](./clustering-primitive.md)       | Shared cross-application clustering layer: tiered scope (partition-cutting → component aggregation → non-merge-tree identity → boundary representations)                                                                                                 |
-| [visualization-engine.md](./visualization-engine.md)       | Visualization layer that consumes engine artifacts: invariants, three-layer architecture, configuration matrix, pedagogical scenarios, phasing                                                                                                           |
-| [viz-core-architecture.md](./viz-core-architecture.md)     | As-built `VizCore` Passes 1–6 (layer model, scene pipeline, JSON render target, interactive VizApi server, schema-driven regen panel, edge/false-bridge rendering, spine/frame overlays, scalar heatmap, generator picker, GMM overlay + generalization) |
+| Doc                                                        | Owns                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [project-primer.md](./project-primer.md) (this doc)        | Session orientation, design philosophy, working style, conventions, pitfalls                                                                                                                                                                                                                                                                                                                              |
+| [spc-maturity.md](./spc-maturity.md)                       | SPC bespoke→primitive renovation: API shape, per-T primitive, execution modes, partial-T epoch contract, correctness items, analysis / tree / handoff layer                                                                                                                                                                                                                                               |
+| [gmm-maturity-extentions.md](./gmm-maturity-extentions.md) | Hierarchical / nested / Bayesian / topology-aware GMM extensions; design rules for the recursive variant; aspirational boundary-representation track                                                                                                                                                                                                                                                      |
+| [state-engine-design.md](./state-engine-design.md)         | General-purpose state / checkpoint engine: artifact log, codecs, streams, supervisor execution, codec inventory, on-disk layout, debt list                                                                                                                                                                                                                                                                |
+| [clustering-primitive.md](./clustering-primitive.md)       | Shared cross-application clustering layer: tiered scope (partition-cutting → component aggregation → non-merge-tree identity → boundary representations)                                                                                                                                                                                                                                                  |
+| [visualization-engine.md](./visualization-engine.md)       | Visualization layer that consumes engine artifacts: invariants, three-layer architecture, configuration matrix, pedagogical scenarios, phasing                                                                                                                                                                                                                                                            |
+| [viz-core-architecture.md](./viz-core-architecture.md)     | As-built `VizCore` Passes 1–9 (layer model, scene pipeline, JSON render target, interactive VizApi server, schema-driven regen panel, edge/false-bridge rendering, spine/frame overlays, scalar heatmap, generator picker, GMM overlay + generalization, Wing-2 TDA flow, `GraphBuilder` single-graph wiring, `VizKernel` enum, kernel/bandwidth controls, `FisherRaoSimplex`/`FisherRaoHalfPlane` split) |
 
 ## What this project is
 
@@ -56,42 +56,45 @@ This project targets relentless performance. Modern .NET gives us the tools; usi
 
 ## Where things are
 
-| Path                              | What                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------- |
-| `projects/`                       | SDK-style project definitions; build configuration lives outside `src/`               |
-| `projects/LinearAlgebra/`         | Standalone Cholesky decomposition primitive (no deps)                                 |
-| `projects/GaussianMixture/`       | GMM: EM fitting, sampling, density, Mahal; depends on LinearAlgebra + DistanceMetrics |
-| `projects/SpcCore/`               | SPC run contract, graph binding, checkpointing, and Potts runtime project             |
-| `projects/SpcThermo/`             | Thermodynamic/information analysis project over materialized SPC state                |
-| `projects/SpcSynthetic/`          | Synthetic dataset to SPC request adapter project                                      |
-| `projects/Hashish/`               | Standalone text/sketching/hash primitive library project                              |
-| `projects/DistanceMetrics/`       | Standalone metric primitive library project                                           |
-| `projects/ProximityGraphs/`       | Standalone proximity graph primitive library project                                  |
-| `projects/CouplingKernels/`       | Standalone distance-to-coupling kernel primitive library project                      |
-| `projects/StatisticalEstimators/` | Standalone estimator primitive library project                                        |
-| `projects/SyntheticDatasets/`     | Standalone synthetic dataset primitive library project                                |
-| `Directory.Build.props`           | Shared SDK settings; .NET 10 LTS target and root `artifacts/` output baseline         |
-| `artifacts/bin/`                  | Build output for all projects; generated by `dotnet build`, not source                |
-| `artifacts/obj/`                  | Intermediate build objects; generated by `dotnet build`, not source                   |
-| `src/linalg/`                     | `LinearAlgebra` source: `CholeskyDecomposition`                                       |
-| `src/gmm/`                        | `GaussianMixture` source: `GaussianComponent`, `GaussianMixtureModel`                 |
-| `src/spc.batch.cs`                | DTOs, SpcCheckpoint carrier, public SpcBatch.Run orchestration                        |
-| `src/spc.graph.cs`                | Edge/CsrGraph topology, graph initialization, connectivity diagnostics                |
-| `src/spc.potts.cs`                | PottsModel, SimulationResult struct, FastUnionFind, Swendsen-Wang loop                |
-| `src/spc.thermo.cs`               | SpcAnalysis base: histograms, medoids, BFS shells, peak detection, purity scoring     |
-| `src/spc.synthetic.cs`            | SpcSynthetic adapter from `SyntheticDatasets` DTOs to `SpcBatchRequest`               |
-| `src/spc.checkpoint.cs`           | Manifest-backed SPC state/checkpoint persistence and handoff/GMM artifact DTOs        |
-| `src/metrics/`                    | `DistanceMetrics` static pairwise metric primitives                                   |
-| `src/graphs/`                     | `ProximityGraphs` rules: Knn, MutualKnn, EpsilonBall, MstAugmented                    |
-| `src/kernels/`                    | `CouplingKernels` primitives: Gaussian, Cauchy, Laplacian, Linear                     |
-| `src/estimators/`                 | `StatisticalEstimators` source files: delta + weighted location estimators            |
-| `src/hashish/`                    | Text, similarity, sketching, and compression primitive source files                   |
-| `src/spc-thermo/`                 | Thermodynamic / information analysis partials                                         |
-| `src/synthetic/`                  | `SyntheticDatasets` ground-truth dataset generators                                   |
-| `.discussion/`                    | Thread archives and research notes; source material, not live code                    |
-| `README.md`                       | Public-facing current project description and build commands                          |
-| `changelog.md`                    | Historical record of code and architecture changes                                    |
-| `TODO.md`                         | Informal backlog / scratch planning, not an authority                                 |
+| Path                                   | What                                                                                             |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `projects/`                            | SDK-style project definitions; build configuration lives outside `src/`                          |
+| `projects/LinearAlgebra/`              | Standalone Cholesky decomposition primitive (no deps)                                            |
+| `projects/GaussianMixture/`            | GMM: EM fitting, sampling, density, Mahal; depends on LinearAlgebra + DistanceMetrics            |
+| `projects/SpcCore/`                    | SPC run contract, graph binding, checkpointing, and Potts runtime project                        |
+| `projects/SpcThermo/`                  | Thermodynamic/information analysis project over materialized SPC state                           |
+| `projects/SpcSynthetic/`               | Synthetic dataset to SPC request adapter project                                                 |
+| `projects/Hashish/`                    | Standalone text/sketching/hash primitive library project                                         |
+| `projects/DistanceMetrics/`            | Standalone metric primitive library project                                                      |
+| `projects/ProximityGraphs/`            | Standalone proximity graph primitive library project                                             |
+| `projects/CouplingKernels/`            | Standalone distance-to-coupling kernel primitive library project                                 |
+| `projects/StatisticalEstimators/`      | Standalone estimator primitive library project                                                   |
+| `projects/SyntheticDatasets/`          | Standalone synthetic dataset primitive library project                                           |
+| `Directory.Build.props`                | Shared SDK settings; .NET 10 LTS target and root `artifacts/` output baseline                    |
+| `artifacts/bin/`                       | Build output for all projects; generated by `dotnet build`, not source                           |
+| `artifacts/obj/`                       | Intermediate build objects; generated by `dotnet build`, not source                              |
+| `src/linalg/`                          | `LinearAlgebra` source: `CholeskyDecomposition`                                                  |
+| `src/clustering/gmm/`                  | `GaussianMixture` source: `GaussianComponent`, `GaussianMixtureModel`                            |
+| `src/clustering/spc/spc.batch.cs`      | DTOs, SpcCheckpoint carrier, public SpcBatch.Run orchestration                                   |
+| `src/clustering/spc/spc.graph.cs`      | SPC graph binding: metric dispatch → `GraphBuilder.Build` → `CsrGraph`; connectivity diagnostics |
+| `src/clustering/spc/spc.potts.cs`      | PottsModel, SimulationResult struct, Swendsen-Wang loop (uses `ProximityGraphs.UnionFind`)       |
+| `src/clustering/spc/spc.thermo.cs`     | SpcAnalysis base: histograms, medoids, BFS shells, peak detection, purity scoring                |
+| `src/clustering/spc/spc.synthetic.cs`  | SpcSynthetic adapter from `SyntheticDatasets` DTOs to `SpcBatchRequest`                          |
+| `src/clustering/spc/spc.checkpoint.cs` | Manifest-backed SPC state/checkpoint persistence and handoff/GMM artifact DTOs                   |
+| `src/clustering/spc/thermo/`           | Thermodynamic/information analysis partials: chi, kl, mhbs                                       |
+| `src/metrics/`                         | `DistanceMetrics` static pairwise metric primitives                                              |
+| `src/graphs/`                          | `ProximityGraphs` root: `GraphBuilder`, `GraphSelection` (NeighborSelection, BoundedMinHeap)     |
+| `src/graphs/construction/`             | `ProximityGraphs` topology selectors: Knn, MutualKnn, EpsilonBall, MstAugmented/EnsureConnected  |
+| `src/graphs/coupling/`                 | `CouplingKernels` primitives: Gaussian, Cauchy, Laplacian, Linear; BandwidthEstimation           |
+| `src/graphs/tda/`                      | `ProximityGraphs` TDA primitives: `CsrGraph` (symmetric CSR), `UnionFind`, future BFS/Rips       |
+| `src/estimators/`                      | `StatisticalEstimators` source files: delta + weighted location estimators                       |
+| `src/hashish/`                         | Text, similarity, sketching, and compression primitive source files                              |
+| `src/spc-thermo/`                      | Thermodynamic / information analysis partials                                                    |
+| `src/synthetic/`                       | `SyntheticDatasets` ground-truth dataset generators                                              |
+| `.discussion/`                         | Thread archives and research notes; source material, not live code                               |
+| `README.md`                            | Public-facing current project description and build commands                                     |
+| `changelog.md`                         | Historical record of code and architecture changes                                               |
+| `TODO.md`                              | Informal backlog / scratch planning, not an authority                                            |
 
 > **Viz projects:** `projects/VizCore/` (layer model + scene builder), `projects/VizApi/` (ASP.NET Core Minimal API serving `POST /api/regen`), `projects/VizCoreSmoke/` (static HTML smoke-test harness). Source in `src/viz-core/`; `viewer.html` is the Three.js client.
 
@@ -109,9 +112,9 @@ Use the current source tree, `README.md`, `changelog.md`, and the user's latest 
 
 - Gaussian coupling $J = \exp(-d^2 / 2\Delta^2)$ is the production physics model. Linear J is legacy/fast mode.
 - `SpcBatchRequest`/`SpcBatchResult` are sealed classes (mutable DTOs). Internal returns like `SimulationResult` are readonly structs.
-- Current SPC dispatch axes on `SpcBatchRequest`: `SpcMetric`, `SpcProximity`, `DeltaEstimator`, and `CouplingKernel`. Metric implementations under `src/metrics/`, graph selectors under `src/graphs/`, coupling kernels under `src/kernels/`, estimators under `src/estimators/`, synthetic generators under `src/synthetic/`, and Hashish primitives under `src/hashish/` should stay independent of `SpcBatch`; `src/spc.graph.cs` and the SPC dispatcher bind primitives to SPC graph initialization. `src/spc.synthetic.cs` is deliberately outside `SpcCore`, compiled by `SpcSynthetic`, and bridges `SyntheticDatasets` to `SpcBatchRequest` for harnesses.
+- Current SPC dispatch axes on `SpcBatchRequest`: `SpcMetric`, `SpcProximity`, `DeltaEstimator`, and `CouplingKernel`. Metric implementations under `src/metrics/`, graph topology selectors under `src/graphs/construction/`, coupling kernels under `src/graphs/coupling/`, TDA graph primitives under `src/graphs/tda/`, estimators under `src/estimators/`, synthetic generators under `src/synthetic/`, and Hashish primitives under `src/hashish/` should stay independent of `SpcBatch`; `src/clustering/spc/spc.graph.cs` and the SPC dispatcher bind primitives to SPC graph initialization via `GraphBuilder.Build`. `src/clustering/spc/spc.synthetic.cs` is deliberately outside `SpcCore`, compiled by `SpcSynthetic`, and bridges `SyntheticDatasets` to `SpcBatchRequest` for harnesses.
 - `SpcBatchResult.Warnings` surfaces graph validation diagnostics (disconnected components, isolated nodes, coverage) to the PS layer.
-- `GaussianMixture` compiles `src/gmm/` under namespace `StatisticalEstimators` (assembly name `GaussianMixture`). Depends on `LinearAlgebra` and `DistanceMetrics`. Public surface: `Fit`, `Predict`, `PredictProba`, `Pdf`, `Mahal`, `Sample`, `NumIterations`, `IsConverged`, `FinalLogLikelihood`.
+- `GaussianMixture` compiles `src/clustering/gmm/` under namespace `StatisticalEstimators` (assembly name `GaussianMixture`). Depends on `LinearAlgebra` and `DistanceMetrics`. Public surface: `Fit`, `Predict`, `PredictProba`, `Pdf`, `Mahal`, `Sample`, `NumIterations`, `IsConverged`, `FinalLogLikelihood`.
 - `LinearAlgebra` compiles `src/linalg/` as a standalone primitive with no dependencies. Current content: `CholeskyDecomposition` — single-allocation Σ = LLᵀ decomposition with `WriteInverseTo`, `LogDet`, and `Sample`.
 - `Mahalanobis.DistanceSquared` (`src/metrics/Mahalanobis.cs`) returns the raw quadratic form D² = (a−b)ᵀΣ⁻¹(a−b) without the sqrt; `Distance` wraps it. Prefer `DistanceSquared` when the sqrt is not needed (e.g. log-pdf, Mahal surface).
 - SDK-style C# projects live under `projects/<ProjectName>/`, target `net10.0` through `Directory.Build.props`, and explicitly include source from `src/`. Keep `bin/` and `obj/` out of `src/`; generated output belongs under root `artifacts/`. Treat `Add-Type` assumptions as legacy transition context, not the architectural default.

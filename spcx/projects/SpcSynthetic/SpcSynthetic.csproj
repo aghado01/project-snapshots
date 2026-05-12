@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\spc.synthetic.cs" Link="spc.synthetic.cs" />
+    <Compile Include="..\..\src\clustering\spc\spc.synthetic.cs" Link="spc\spc.synthetic.cs" />
   </ItemGroup>
 
   <ItemGroup>

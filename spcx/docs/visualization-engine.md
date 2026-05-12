@@ -1,7 +1,7 @@
 # Visualization Engine — Design
 
-> **Status:** DRAFT v0.7 — Phases 2–4 and 6–7 implemented; Wing 1/2 architecture settled (interactive VizApi server, schema-driven regen panel, edge rendering with false-bridge highlighting, spine/frame overlays, scalar heatmap, generator picker, GMM overlay with K-slider, semantic PALETTE, Wing-2 empirical local tangent flow via `LocalTangent` + `VectorFieldLayer` + InstancedMesh cones)
-> **Date:** 2026-05-10
+> **Status:** DRAFT v0.9 — Passes 1–9 implemented; Wing 1/2 architecture settled (interactive VizApi server, schema-driven regen panel with auto-regen on field change, edge rendering with false-bridge highlighting, spine/frame overlays, scalar heatmap, generator picker, GMM overlay with K-slider, semantic PALETTE, Wing-2 empirical local tangent flow via `LocalTangent` + `VectorFieldLayer` + InstancedMesh cones; FigureEight Möbius spine variant with splay; improved graph wire contrast; ellipsoids off by default; `GraphBuilder.Build` single-graph wiring with coupling-strength edge weights; `VizKernel` enum + kernel/bandwidth controls; `FisherRaoSimplex`/`FisherRaoHalfPlane` split)
+> **Date:** 2026-05-11
 > **Purpose:** Define the shape of a visualization layer that consumes the same primitives as the computing engine (synthetic datasets, distance metrics, proximity graphs, SPC state, GMM fits) to produce both pedagogical/marketing artifacts and a diagnostic tool that helps users understand configuration trade-offs.
 > **Sibling documents:** [state-engine-design.md](./state-engine-design.md) for the artifact contract this layer consumes, [spc-maturity.md](./spc-maturity.md) and [gmm-maturity-extentions.md](./gmm-maturity-extentions.md) for the semantic objects rendered.
 

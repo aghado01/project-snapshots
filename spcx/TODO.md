@@ -91,3 +91,11 @@ finish GMM implementation
 - recursive mixture models
 - component merging strategies
   - tiling -> merge
+
+need to overhaul the synthetic generators and contract
+
+- topological aware, parametric generators to ensure TDA can discover structure
+
+fisher information matrix primitive
+
+mapper graph construction, single/complete linkage

@@ -10,5 +10,6 @@
     <ProjectReference Include="..\SyntheticDatasets\SyntheticDatasets.csproj" />
     <ProjectReference Include="..\ProximityGraphs\ProximityGraphs.csproj" />
     <ProjectReference Include="..\StatisticalEstimators\StatisticalEstimators.csproj" />
+    <ProjectReference Include="..\DistanceMetrics\DistanceMetrics.csproj" />
   </ItemGroup>
 </Project>

@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\spc.thermo.cs" Link="spc.thermo.cs" />
-    <Compile Include="..\..\src\spc-thermo\*.cs" Link="spc-thermo\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\clustering\spc\spc.thermo.cs" Link="spc\spc.thermo.cs" />
+    <Compile Include="..\..\src\clustering\spc\thermo\*.cs" Link="spc\thermo\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

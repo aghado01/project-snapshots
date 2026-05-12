@@ -6,10 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\spc.batch.cs" Link="spc.batch.cs" />
-    <Compile Include="..\..\src\spc.checkpoint.cs" Link="spc.checkpoint.cs" />
-    <Compile Include="..\..\src\spc.graph.cs" Link="spc.graph.cs" />
-    <Compile Include="..\..\src\spc.potts.cs" Link="spc.potts.cs" />
+    <Compile Include="..\..\src\clustering\spc\spc.batch.cs" Link="spc\spc.batch.cs" />
+    <Compile Include="..\..\src\clustering\spc\spc.checkpoint.cs" Link="spc\spc.checkpoint.cs" />
+    <Compile Include="..\..\src\clustering\spc\spc.graph.cs" Link="spc\spc.graph.cs" />
+    <Compile Include="..\..\src\clustering\spc\spc.potts.cs" Link="spc\spc.potts.cs" />
   </ItemGroup>
 
   <ItemGroup>

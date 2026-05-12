@@ -6,6 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\kernels\*.cs" Link="kernels\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\graphs\coupling\*.cs" Link="coupling\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

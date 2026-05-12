@@ -3,13 +3,17 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using CouplingKernels;
+using DistanceMetrics;
 using Estimators.Tangent;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using ProximityGraphs;
+using StatisticalEstimators;
 using SyntheticDatasets;
 using Viz;
+using Viz.Adapters.Gmm;
 using Viz.Adapters.Synthetic;
 using Viz.Renderers;
 using static SyntheticDatasets.SyntheticData;
@@ -60,12 +64,37 @@ static ScenePackage BuildPackage(RegenRequest req)
     int[] gtLabels = ExtractGtLabels(adapted);
 
     VizMetric metric = Enum.TryParse<VizMetric>(req.Metric, out var m) ? m : VizMetric.Euclidean;
+    KernelType kernelType = Enum.TryParse<KernelType>(req.Kernel, out var kt) ? kt : KernelType.Gaussian;
+    ProximityRule rule = req.NeighborRule switch
+    {
+        "MutualKnn" => ProximityRule.MutualKnn,
+        "EpsilonBall" => ProximityRule.EpsilonBall,
+        _ => ProximityRule.Knn,
+    };
+    bool ensureConnected = req.NeighborRule == "MstAugmented";
+
     Func<int, int, double> dist = metric switch
     {
         VizMetric.Manhattan => (i, j) => ManhattanDist(features, d, i, j),
         VizMetric.Cosine => (i, j) => CosineDist(features, d, i, j),
+        VizMetric.FisherRaoSimplex => (i, j) => FisherRaoSimplex.Distance(RowOf(features, d, i), RowOf(features, d, j)),
+        VizMetric.FisherRaoHalfPlane => (i, j) => FisherRaoHalfPlane.Distance(RowOf(features, d, i), RowOf(features, d, j)),
         _ => (i, j) => EuclideanDist(features, d, i, j),
     };
+
+    // ── Shared: single graph build — Phase 1 (parallel) + Phase 2 (sequential)
+    // CsrGraph is immutable after Build returns; consumed by both edge layer
+    // serialization and LocalTangent (Wing-2) without re-running O(N²) neighbor search.
+    CsrGraph csrGraph = GraphBuilder.Build(
+        n, dist,
+        rule: rule,
+        k: req.KnnK,
+        epsilon: req.EpsilonBallEpsilon,
+        kernel: kernelType,
+        bandwidth: req.Bandwidth,
+        ensureConnected: ensureConnected);
+
+    // ── Edge layer: serialize CsrGraph — weights are coupling strengths in (0,1] ──
     ProximitySpec spec = req.NeighborRule switch
     {
         "MutualKnn" => new MutualKnnSpec(req.KnnK),
@@ -73,16 +102,9 @@ static ScenePackage BuildPackage(RegenRequest req)
         "MstAugmented" => new MstAugmentedSpec(req.KnnK),
         _ => new KnnSpec(req.KnnK),
     };
-    var edgeLayers = new List<EdgeLayer>
-    {
-        BuildEdgeLayer(features, n, d, gtLabels, metric, dist, spec),
-    };
+    var edgeLayers = new List<EdgeLayer> { BuildEdgeLayerFromCsr(csrGraph, n, gtLabels, metric, spec) };
 
-    // ── Shared: Wing-2 empirical local tangent flow ───────────────────────────
-    // Reuses the same proximity graph topology as the edge layer (same k, metric,
-    // rule) but builds it independently so BuildEdgeLayer stays unchanged.
-    // The second call is O(n²·k) which is identical cost to edge layer construction.
-    NeighborSelection flowSel = SelectNeighbors(n, dist, spec);
+    // ── Wing-2: local tangent flow — reuses same CsrGraph adjacency ──────────
     var points2d = new double[n][];
     for (int i = 0; i < n; i++)
     {
@@ -92,25 +114,49 @@ static ScenePackage BuildPackage(RegenRequest req)
     var adjacency = new int[n][];
     for (int i = 0; i < n; i++)
     {
-        var nbrs = flowSel.AllNeighbors[i];
-        adjacency[i] = new int[nbrs.Length];
-        for (int j = 0; j < nbrs.Length; j++) adjacency[i][j] = nbrs[j].Index;
+        int rowStart = csrGraph.RowPointers[i];
+        int rowEnd = csrGraph.RowPointers[i + 1];
+        int len = rowEnd - rowStart;
+        adjacency[i] = new int[len];
+        for (int j = 0; j < len; j++)
+            adjacency[i][j] = csrGraph.Targets[rowStart + j];
     }
     var tangentVectors = LocalTangent.Compute(points2d, adjacency);
+
+    // BFS orientation propagation: aligns tangent signs across the graph so
+    // incoherence is a data signal (manifold discontinuity, false bridges) not
+    // an artefact of independent power-iteration sign choices.
+    LocalTangent.PropagateOrientation(
+        tangentVectors, n, d, csrGraph.RowPointers, csrGraph.Targets);
+
+    // Per-point coherence: mean dot(t_i, t_j) over CSR neighbours.
+    // High = intrinsic edge; near-zero = ambient shortcut or degenerate neighbourhood.
+    double[] coherence = LocalTangent.ComputeCoherence(
+        tangentVectors, n, d, csrGraph.RowPointers, csrGraph.Targets);
+
     var vectorFieldLayers = new List<VectorFieldLayer>
     {
         new VectorFieldLayer("Local PCA Flow", tangentVectors, n, Math.Min(d, 3)),
     };
 
-    // ── Shared: GMM overlay — works for any generator with SpineLayers ────────
-    // GmmComponents slider pos 0-4 → K = 1, 2, 4, 8, 16 Gaussian components.
-    // sigmaLong and sigmaPerp are derived from each spine's own geometry via
-    // SpineLayer.TypicalScale (cross-section radius propagated from the generator).
+    // ── Shared: GMM overlays ─────────────────────────────────────────────────
+    // Spine-aware overlay: derives σ from spine geometry (analytic, not fitted).
+    // Fitted EM overlay: runs a real GMM on the point cloud at the same K.
     int gmmPos = Math.Clamp((int)Math.Round(req.GmmComponents), 0, 4);
     int gmmK = 1 << gmmPos;
     var gaussianLayers = new List<GaussianLayer>(adapted.GaussianLayers);
     foreach (var gmmLayer in BuildGmmOverlaysFromSpines(adapted.SpineLayers, gmmK))
         gaussianLayers.Add(gmmLayer);
+
+    var fittedGmm = new GaussianMixtureModel(k: gmmK, dimension: d);
+    fittedGmm.RobustInitialize(points2d);
+    fittedGmm.Fit(points2d);
+    gaussianLayers.Add(GmmVizAdapter.ToGaussianLayer(fittedGmm, $"GMM (EM) K={gmmK}"));
+
+    var scalarLayers = new List<ScalarLayer>(adapted.ScalarLayers)
+    {
+        new ScalarLayer("Flow Coherence", coherence, ScalarLayerKind.CoherenceScore),
+    };
 
     // ── Shared: merge params so they round-trip without resetting on regen ────
     var mergedParams = adapted.GeneratorParams != null
@@ -121,13 +167,15 @@ static ScenePackage BuildPackage(RegenRequest req)
     mergedParams["metric"] = req.Metric;
     mergedParams["neighborRule"] = req.NeighborRule;
     mergedParams["epsilonBallEpsilon"] = req.EpsilonBallEpsilon;
+    mergedParams["kernel"] = req.Kernel;
+    mergedParams["bandwidth"] = req.Bandwidth;
     mergedParams["gmmComponents"] = req.GmmComponents;
     mergedParams["showFlow"] = req.ShowFlow;
 
     var vizDataset = new VizDataset(
         adapted.Points,
         adapted.LabelLayers,
-        adapted.ScalarLayers,
+        scalarLayers,
         edgeLayers,
         gaussianLayers,
         adapted.TemporalSequences,
@@ -171,7 +219,7 @@ static IEnumerable<GaussianLayer> BuildGmmOverlaysFromSpines(
 
         int stride = Math.Max(1, M / K);
         int offset = stride / 2;
-        yield return BuildGmmOverlayLayer(spine, sigmaLong, sigmaPerp, stride, offset, $"GMM K={K}");
+        yield return BuildGmmOverlayLayer(spine, sigmaLong, sigmaPerp, stride, offset, $"GMM (Oracle) K={K}");
     }
 }
 
@@ -180,7 +228,10 @@ static (VizDataset adapted, string title) BuildCrescentAdapted(RegenRequest req)
 {
     EllipsoidPlacement placement = Enum.TryParse<EllipsoidPlacement>(req.Placement, out var p)
         ? p
-        : EllipsoidPlacement.NearOpenFace;
+        : EllipsoidPlacement.OrthogonalElbowIntersect;
+
+    EllipsoidShellMode shellMode = Enum.TryParse<EllipsoidShellMode>(req.EllipsoidShellMode, out var sm)
+        ? sm : EllipsoidShellMode.Solid;
 
     var dataset = GenerateCrescentAndEllipsoid(
         crescentPoints: req.CrescentPoints,
@@ -189,6 +240,7 @@ static (VizDataset adapted, string title) BuildCrescentAdapted(RegenRequest req)
         arcHalfAngle: req.ArcHalfAngle,
         ellipsoidPoints: req.EllipsoidPoints,
         ellipsoidAxes: req.EllipsoidAxes,
+        ellipsoidShellMode: shellMode,
         placement: placement,
         intersectDepth: req.IntersectDepth,
         intersectRadialShift: req.IntersectRadialShift,
@@ -203,11 +255,18 @@ static (VizDataset adapted, string title) BuildMobiusAdapted(RegenRequest req)
 {
     MobiusPlacement placement = Enum.TryParse<MobiusPlacement>(req.Placement, out var mp)
         ? mp
-        : MobiusPlacement.NearSeam;
+        : MobiusPlacement.CenterCrossOrtho;
 
     TubeCrossSection crossSection = Enum.TryParse<TubeCrossSection>(req.CrossSection, out var cs)
         ? cs
         : TubeCrossSection.GaussianIsotropic;
+
+    MobiusSpineShape spineShape = Enum.TryParse<MobiusSpineShape>(req.SpineShape, out var ss)
+        ? ss
+        : MobiusSpineShape.Circle;
+
+    EllipsoidShellMode shellMode = Enum.TryParse<EllipsoidShellMode>(req.EllipsoidShellMode, out var sm)
+        ? sm : EllipsoidShellMode.Solid;
 
     var dataset = GenerateMobiusAndEllipsoid(
         mobiusPoints: req.MobiusPoints,
@@ -218,8 +277,11 @@ static (VizDataset adapted, string title) BuildMobiusAdapted(RegenRequest req)
         twistCount: req.TwistCount,
         crossSection: crossSection,
         radialBias: req.RadialBias,
+        spineShape: spineShape,
+        splayFactor: req.SplayFactor,
         ellipsoidPoints: req.EllipsoidPoints,
         ellipsoidAxes: req.EllipsoidAxes,
+        ellipsoidShellMode: shellMode,
         placement: placement,
         intersectDepth: req.IntersectDepth,
         intersectRadialShift: req.IntersectRadialShift,
@@ -238,37 +300,33 @@ static int[] ExtractGtLabels(VizDataset ds)
 
 // ── Proximity graph helpers ───────────────────────────────────────────────────
 
-static NeighborSelection SelectNeighbors(int n, Func<int, int, double> dist, ProximitySpec proximity) =>
-    proximity switch
-    {
-        KnnSpec s => ProximityGraph.SelectKnn(n, s.K, dist),
-        MutualKnnSpec s => ProximityGraph.SelectMutualKnn(n, s.K, dist),
-        EpsilonBallSpec s => ProximityGraph.SelectEpsilonBall(n, s.Epsilon, dist),
-        MstAugmentedSpec s => ProximityGraph.SelectMstAugmented(n, s.K, dist),
-        _ => throw new NotSupportedException($"NeighborRule {proximity.Kind} not wired"),
-    };
-
-static EdgeLayer BuildEdgeLayer(
-    double[] features, int n, int d, int[] gtLabels,
-    VizMetric metric, Func<int, int, double> dist, ProximitySpec proximity)
+// Serialize a CsrGraph into an EdgeLayer.
+// Weights are coupling strengths in (0,1] — high weight = high similarity = bright.
+// Iterates upper triangle only (j > i) to emit each undirected edge once.
+static EdgeLayer BuildEdgeLayerFromCsr(
+    CsrGraph graph, int n, int[] gtLabels,
+    VizMetric metric, ProximitySpec proximity)
 {
-    NeighborSelection sel = SelectNeighbors(n, dist, proximity);
-
+    // Count edges in upper triangle
     int edgeCount = 0;
-    foreach (var row in sel.AllNeighbors) edgeCount += row.Length;
+    for (int i = 0; i < n; i++)
+        for (int idx = graph.RowPointers[i]; idx < graph.RowPointers[i + 1]; idx++)
+            if (graph.Targets[idx] > i) edgeCount++;
 
     var src = new int[edgeCount];
     var dst = new int[edgeCount];
     var weight = new double[edgeCount];
-    int idx = 0;
+    int e = 0;
 
     for (int i = 0; i < n; i++)
-        foreach (var nb in sel.AllNeighbors[i])
+        for (int idx = graph.RowPointers[i]; idx < graph.RowPointers[i + 1]; idx++)
         {
-            src[idx] = i;
-            dst[idx] = nb.Index;
-            weight[idx] = nb.Distance;
-            idx++;
+            int j = graph.Targets[idx];
+            if (j <= i) continue;
+            src[e] = i;
+            dst[e] = j;
+            weight[e] = graph.Weights[idx];  // coupling strength, not distance
+            e++;
         }
 
     int[]? edgeClusterSrc = null;
@@ -277,10 +335,10 @@ static EdgeLayer BuildEdgeLayer(
     {
         edgeClusterSrc = new int[edgeCount];
         edgeClusterDst = new int[edgeCount];
-        for (int e = 0; e < edgeCount; e++)
+        for (int ei = 0; ei < edgeCount; ei++)
         {
-            edgeClusterSrc[e] = gtLabels[src[e]];
-            edgeClusterDst[e] = gtLabels[dst[e]];
+            edgeClusterSrc[ei] = gtLabels[src[ei]];
+            edgeClusterDst[ei] = gtLabels[dst[ei]];
         }
     }
 
@@ -386,6 +444,17 @@ static double ManhattanDist(double[] features, int d, int i, int j)
     return sum;
 }
 
+// Extracts row i from a flat N×D array as a new double[].
+// Used by metrics that require double[] inputs (FisherRaoSimplex, FisherRaoHalfPlane).
+// Allocation is acceptable here — these metrics are selected explicitly and are
+// not on the Euclidean/Manhattan hot path.
+static double[] RowOf(double[] features, int d, int i)
+{
+    var row = new double[d];
+    Array.Copy(features, i * d, row, 0, d);
+    return row;
+}
+
 static double CosineDist(double[] features, int d, int i, int j)
 {
     double dot = 0, ni = 0, nj = 0;
@@ -407,27 +476,30 @@ record RegenRequest(
     // ── Discriminator ──────────────────────────────────────────────────────────
     string Generator = "CrescentAndEllipsoid",
     // ── CrescentAndEllipsoid ───────────────────────────────────────────────────
-    int CrescentPoints = 300,
+    int CrescentPoints = 10000,
     double CrescentRadius = 3.0,
     double CrescentWidth = 0.40,
     double ArcHalfAngle = 2.04,
     double GmmComponents = 1,   // slider pos: 0→K=1, 1→K=2, 2→K=4, 3→K=8, 4→K=16
                                 // ── MobiusAndEllipsoid ─────────────────────────────────────────────────────
-    int MobiusPoints = 400,
+    int MobiusPoints = 10000,
     double SpineRadius = 2.5,
     double HalfWidth = 1.1,
     double HalfThickness = 0.12,
     double NoiseSigma = 0.06,
     int TwistCount = 1,
     double RadialBias = 1.0,
-    string CrossSection = "Ribbon",
+    string CrossSection = "Annular",
+    string SpineShape = "FigureEight",
+    double SplayFactor = 0.7,
     // ── Shared ellipsoid ───────────────────────────────────────────────────────
-    int EllipsoidPoints = 180,
+    int EllipsoidPoints = 5000,
     double[]? EllipsoidAxes = null,
+    string EllipsoidShellMode = "Solid",
     // ── Embedding (Möbius only) ────────────────────────────────────────────
     int Dimensions = 3,
     // ── Placement (shared shape) ───────────────────────────────────────────────
-    string Placement = "NearOpenFace",
+    string Placement = "OrthogonalElbowIntersect",
     double IntersectDepth = 0.0,
     double IntersectRadialShift = 0.0,
     double GapScale = 1.0,
@@ -437,5 +509,7 @@ record RegenRequest(
     string Metric = "Euclidean",
     string NeighborRule = "Knn",
     double EpsilonBallEpsilon = 0.5,
-    // ── Overlay ────────────────────────────────────────────────────────────────
+    string Kernel = "Gaussian",
+    double Bandwidth = 0.0,    // 0 = auto-estimate via BandwidthEstimation
+                               // ── Overlay ────────────────────────────────────────────────────────────────
     bool ShowFlow = false);

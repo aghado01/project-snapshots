@@ -21,7 +21,7 @@ From the distance field, edges are selected by one of four rules:
 - **KNN** — _K_ nearest neighbours, OR-symmetrised to produce an undirected graph
 - **MutualKNN** — AND-rule; edge exists only if both nodes mutually name each other; inherently symmetric but risks connectivity loss in high dimensions
 - **EpsilonBall** — all pairs within radius ε
-- **MstAugmented** — starts from Mutual KNN, then runs Kruskal's on the full pairwise distance matrix and patches in MST bridging edges to guarantee connectivity; recommended for distributional metrics (Jensen-Shannon) and high-dimensional data
+- **MstAugmented** — starts from Mutual KNN, then runs Borůvka phases on the full pairwise distance matrix and patches in MST bridging edges to guarantee connectivity; recommended for distributional metrics (Jensen-Shannon) and high-dimensional data
 
 Post-construction, `ValidateGraph` runs union-find to count components and isolated nodes, surfacing warnings to the caller without blocking simulation.
 
@@ -40,7 +40,7 @@ If `Delta = 0`, bandwidth is auto-estimated from 1-NN distances using either `Me
 
 `PottsModel` runs SW on the CSR graph at each temperature. Bond probability per edge is `1 − exp(−J/T)`. Vectorised bond-probability initialisation uses `System.Numerics.Tensors` (`TensorPrimitives.Multiply/Exp/Negate/Add`). The simulation kernel owns spin evolution and epoch callbacks only; susceptibility is computed afterward by the chi analysis layer from materialized spin states or checkpoint history.
 
-The Potts state space is `Q = 20` (default). `FastUnionFind` with path compression and union-by-size handles cluster formation and spin-flip dispatch in the inner loop.
+The Potts state space is `Q = 20` (default). `ProximityGraphs.UnionFind` with path compression and union-by-size handles cluster formation and spin-flip dispatch in the inner loop.
 
 ### 5 — Phase transition detection
 
@@ -79,19 +79,21 @@ projects/
 └── VizCoreSmoke/VizCoreSmoke.csproj # Smoke-test harness for VizCore static HTML render
 
 src/
-├── gmm/ # GaussianMixture source: GaussianComponent, GaussianMixtureModel
-├── linalg/ # LinearAlgebra source: CholeskyDecomposition
-├── spc.batch.cs # SpcBatchRequest/Result DTOs, SpcCheckpoint carrier, SpcBatch.Run orchestration
-├── spc.graph.cs # Edge/CsrGraph runtime topology, graph initialization, connectivity diagnostics
-├── spc.potts.cs # PottsModel, SimulationResult, FastUnionFind
-├── spc.thermo.cs # SpcAnalysis base: histograms, medoids, BFS shells, peak detection, purity scoring
-├── spc.synthetic.cs # SpcSynthetic adapter from SyntheticDatasets DTOs to SpcBatchRequest
-├── spc.checkpoint.cs # SpcCheckpoint DTOs, manifest-backed state artifacts, atomic persistence
+├── linalg/                     # LinearAlgebra source: CholeskyDecomposition
 │
-├── spc-thermo/
-│ ├── chi.cs # Susceptibility peak detection
-│ ├── kl.cs # KL divergence: global, fan-out, radial coherence, Fisher information
-│ └── mhbs.cs # Multi-hop boundary sharpness analysis
+├── clustering/
+│   ├── gmm/                    # GaussianMixture source: GaussianComponent, GaussianMixtureModel
+│   └── spc/
+│       ├── spc.batch.cs        # SpcBatchRequest/Result DTOs, SpcCheckpoint carrier, SpcBatch.Run orchestration
+│       ├── spc.graph.cs        # Graph binding: metric dispatch → GraphBuilder.Build → CsrGraph; connectivity diagnostics
+│       ├── spc.potts.cs        # PottsModel, SimulationResult, Swendsen-Wang loop (uses ProximityGraphs.UnionFind)
+│       ├── spc.thermo.cs       # SpcAnalysis base: histograms, medoids, BFS shells, peak detection, purity scoring
+│       ├── spc.synthetic.cs    # SpcSynthetic adapter from SyntheticDatasets DTOs to SpcBatchRequest
+│       ├── spc.checkpoint.cs   # SpcCheckpoint DTOs, manifest-backed state artifacts, atomic persistence
+│       └── thermo/
+│           ├── chi.cs          # Susceptibility peak detection
+│           ├── kl.cs           # KL divergence: global, fan-out, radial coherence, Fisher information
+│           └── mhbs.cs         # Multi-hop boundary sharpness analysis
 │
 ├── estimators/
 │ ├── EuclideanMean.cs # Weighted Euclidean Fréchet mean
@@ -118,32 +120,40 @@ src/
 │ ├── hyperloglog.cs # Approximate cardinality estimator
 │ └── ncd.cs # Standalone pairwise NCD primitive
 │
-├── kernels/ # CouplingKernels distance-to-coupling primitives
-│ ├── Gaussian.cs
-│ ├── Cauchy.cs
-│ ├── Laplacian.cs
-│ └── Linear.cs
+├── metrics/                    # Static pairwise metric primitives, independent of graph construction
+│   ├── Hamming.cs
+│   ├── Euclidean.cs
+│   ├── Canberra.cs
+│   ├── Manhattan.cs
+│   ├── Minkowski.cs
+│   ├── Cosine.cs
+│   ├── JensenShannon.cs
+│   ├── Jaccard.cs
+│   ├── Ncd.cs
+│   ├── Poincare.cs
+│   ├── Wasserstein.cs
+│   ├── Mahalanobis.cs
+│   ├── FisherRaoSimplex.cs     # Bhattacharyya angle geodesic for discrete PMF vectors
+│   └── FisherRaoHalfPlane.cs   # Exact half-plane geodesic for (μ, log_σ) features
 │
-├── metrics/ # Static pairwise metric primitives, independent of graph construction
-│ ├── Hamming.cs
-│ ├── Euclidean.cs
-│ ├── Canberra.cs
-│ ├── Manhattan.cs
-│ ├── Minkowski.cs
-│ ├── Cosine.cs
-│ ├── JensenShannon.cs
-│ ├── Jaccard.cs
-│ ├── Ncd.cs
-│ ├── Poincare.cs
-│ ├── Wasserstein.cs
-│ ├── Mahalanobis.cs
-│ └── FisherRao.cs
-│
-├── graphs/ # ProximityGraphs primitive graph selection rules
-│ ├── Knn.cs
-│ ├── MutualKnn.cs
-│ ├── EpsilonBall.cs
-│ └── MstAugmented.cs
+├── graphs/                     # ProximityGraphs: graph builder, selection, and TDA primitives
+│   ├── GraphBuilder.cs         # Build(n, dist, rule, k, ε, kernel, bandwidth, ensureConnected) → CsrGraph
+│   ├── GraphSelection.cs       # NeighborSelection, Neighbor, BoundedMinHeap
+│   ├── construction/
+│   │   ├── Knn.cs
+│   │   ├── MutualKnn.cs
+│   │   ├── EpsilonBall.cs
+│   │   └── MstAugmented.cs     # EnsureConnected: Borůvka O(N²/phase) MST repair
+│   ├── coupling/               # CouplingKernels distance-to-coupling primitives + BandwidthEstimation
+│   │   ├── Gaussian.cs
+│   │   ├── Cauchy.cs
+│   │   ├── Laplacian.cs
+│   │   ├── Linear.cs
+│   │   └── BandwidthEstimation.cs
+│   └── tda/                    # TDA graph primitives
+│       ├── CsrGraph.cs         # Symmetric CSR adjacency + coupling weights
+│       ├── UnionFind.cs        # Path-compressed union-find with Reset/GetLabels
+│       └── Edge.cs             # Edge struct: Source, Target, J (coupling strength)
 │
 └── synthetic/ # SyntheticDatasets ground-truth generators and shared helpers
 ├── SyntheticData.cs # SyntheticDataset DTO, sampling primitives, geometry helpers

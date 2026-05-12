@@ -1,5 +1,150 @@
 # Changelog
 
+## 2026-05-12 — Hashish: TF-IDF, Co-occurrence, CosineVectors, WelfordMahal
+
+### Added
+
+- **`src/hashish/tfidf.cs`** — Full TF-IDF pipeline. `TfIdfOptions`: `TfVariant` (`Sublinear` default, sklearn-equivalent `1 + log(tf)`; or `Raw`), L2-normalize flag, `MinDf`/`MaxDfRatio` vocabulary pruning, alphabetical sort for cross-run determinism. `TokenizedCorpus` caches tokenization so repeated `Transform` calls avoid re-tokenizing. `TfIdfModel`: `Fit(docs)` (span-based DF path) and `Fit(TokenizedCorpus)` (skips re-tokenization); `Transform(doc)` / `Transform(ReadOnlySpan<string>)` / `TransformSparse(doc)` / `TransformAll(docs|corpus)`. `TfIdf` orchestrator: `Tokenize`, `FitTransform` (one-shot flat `double[N*Dim]` dense rows). Verified: 5-doc corpus, all rows L2-normalize to 1.0, IDF numerics match direct `InverseDocumentFrequency.Compute`.
+- **`src/hashish/tfidf.search.cs`** — `TfIdfSearch`. `ScoreQuery(model, rows, query)`: sparse-query × dense-rows (walks only query nnz). `NearestDocuments(model, rows, docIndex, topK)`: dense × dense. Both use a bounded min-heap for O(N log K) top-K retrieval.
+- **`src/hashish/cooc.cs`** — `CooccurrenceModel` + `CooccurrenceBuilder`. Two-pass windowed co-occurrence: pass 1 tokenizes corpus and builds a frequency-ranked vocabulary (`minTokenFrequency`, `maxVocabSize` pruning); pass 2 accumulates symmetric counts into a flat `int[]` (row-major vocab×vocab). `FrozenDictionary` token→index map after build. `Count(int,int)` / `Count(string,string)` pair lookups; `Row(int)` / `Row(string)` zero-copy span accessors over the flat array. Symmetric increments: `Count(a,b) == Count(b,a)`.
+- **`src/hashish/cooc_stats.cs`** — `CooccurrenceStats`. `Pmi` / `Ppmi` (Church & Hanks 1990, natural log); `PpmiVector(tokenIndex)` and `PpmiMatrix()` for distributional semantic vectors (suitable for cosine distance matrix or SPC input); `ConditionalProbability`; `ContextualEntropy` (Shannon H, bits) and `NormalizedContextualEntropy` (H / log₂ V, range [0,1]); `TopContextNeighbors` (PPMI-ranked, for model inspection). Index and string overloads throughout.
+- **`src/hashish/cos.cs`** — `CosineVectors`. `ReadOnlySpan<double>` throughout; backed by `TensorPrimitives`. `Similarity` (clamps to [−1,1], returns 0 for zero vectors); `Distance` (arccos/π, [0,1]); `DistanceNormalized` (dot-product fast path — only valid after `NormalizeInPlace`, skips norm computation); `NormalizeInPlace(Span<double>)`; `BuildDistanceMatrix(double[][])` — normalizes copies into an `ArrayPool` buffer, builds upper triangle, returns flat n×n `double[]` suitable for SPC distance matrix input.
+- **`src/estimators/WelfordMahal.cs`** — `OnlineMahalanobis` (namespace `Estimators.Online`). Diagonal Mahalanobis via Welford's algorithm: per-dimension running mean + M2, O(D) memory, numerically stable single-pass. Streaming/large-D alternative to full-covariance batch methods; does not capture inter-dimensional correlations.
+
+### Changed
+
+- **`src/hashish/idf.cs` — `InverseDocumentFrequency.Compute`** rewritten: `Regex.EnumerateMatches` replaces per-doc `Split`; `Dictionary<,>.GetAlternateLookup<ReadOnlySpan<char>>` with a `(LastSeenDoc, Count)` per-token entry replaces per-doc `HashSet`. One string allocation per unique corpus token, zero per-match `Match` objects, no per-doc `HashSet` allocation. Same public signature; same numerics.
+- **`src/hashish/bm25.cs` — `Bm25Stats.Compute`**: now a 4-line shim delegating to `InverseDocumentFrequency.Compute`. Duplicate `WordRegex` definition and corpus walk removed.
+- **`src/hashish/tokenizer.cs`** — `WordRegex` promoted to `internal` so `idf.cs`, `cooc.cs`, and future Hashish primitives share the single compiled `Regex` instance.
+- **`projects/Hashish/Hashish.csproj`** — `System.Numerics.Tensors 10.0.0` package reference added (required by `cos.cs`; was missing).
+
+---
+
+## 2026-05-12 — GMM–Viz Integration, ClusterCovariances Removal
+
+### Added
+
+- **`src/viz-core/gmm_adapter.cs`** — `GmmVizAdapter` static class (`Viz.Adapters.Gmm`). Five methods that turn a fitted `GaussianMixtureModel` into viz layer types: `ToGaussianLayer` (flattens components, optional merge-strategy map), `ToComponentLabels` (hard assignments → `LabelLayerKind.GmmComponent`), `ToClusterLabels` (strategy-remapped assignments → `LabelLayerKind.GmmCluster`), `ToResponsibilityScalar` (column slice of cached responsibility matrix → `ScalarLayerKind.Responsibility`), `ToMahalanobisScalar` (per-point min-over-k √Mahal → `ScalarLayerKind.MahalanobisDistance`). Fills all latent slots pre-declared in `viz_core.cs`.
+- **`projects/VizCore/VizCore.csproj`** — `ProjectReference` to `GaussianMixture`; `gmm_adapter.cs` added to Compile items.
+
+### Changed
+
+- **`src/viz-core/adapter.cs` — `BuildBestFitGaussianLayer`**: Replaced stored-covariance lookup with a real 1-component GMM fit (`RobustInitialize` + `Fit`) per non-convex cluster (ArcGeometry, MobiusTubeGeometry). No longer depends on `SyntheticDataset.ClusterCovariances`. `ComputeClusterMean` deleted (mean now comes from `GaussianComponent.Mean`).
+- **`projects/VizApi/Program.cs`**: Oracle overlay relabeled `"GMM (Oracle) K={K}"` (was `"GMM K={K}"`) to distinguish it from the fitted model. Second overlay `"GMM (EM) K={K}"` added: fits a real `GaussianMixtureModel` on the point cloud at the same K and renders it via `GmmVizAdapter.ToGaussianLayer`. `using Viz.Adapters.Gmm` and `using StatisticalEstimators` added.
+
+### Removed
+
+- **`SyntheticDataset.ClusterCovariances`** (`src/synthetic/SyntheticData.cs`) — property deleted.
+- **`BuildCrescentApproxCovariance`** (`src/synthetic/CrescentEllipsoid.cs`) — private helper deleted; crescent covariance is now computed on-demand by a 1-component GMM fit.
+- **`ApproximateMobiusCovariance`** (`src/synthetic/MobiusEllipsoid.cs`) — private helper deleted; same reason.
+- `ClusterCovariances` population removed from `AnisotropicGaussian`, `CrescentEllipsoid`, `MobiusEllipsoid` generators.
+
+---
+
+## 2026-05-11 — GMM Maturity: Merge Strategies, BIC Sweep, Constrained EM, Primitives
+
+### Added
+
+- **`src/clustering/gmm/IResponsibilityConstraint.cs`**: Interface `void Apply(double[,] responsibilities, int n, int k, int iteration, int maxIterations)`. Blending rule: r̂ᵢₖ ← (1−λ)·r̂ᵢₖ + λ·sᵢₖ, then row-renormalise. Degenerate hard-label case is λ=1 with one-hot sᵢₖ.
+- **`src/clustering/gmm/AnnealedSoftConstraint.cs`**: `IResponsibilityConstraint` implementation. Linear λ schedule: λ(t) = λ_start + (λ_end − λ_start)·t/T. Constructor copies + optionally row-normalises the supervisor confidence matrix. Zero-sum rows (supervisor abstains) are skipped. Allocation-free `Apply`. Diagnostic `LambdaAt(int, int)` helper.
+- **`src/clustering/gmm/IComponentMergeStrategy.cs`**: Interface `int[] Merge(GaussianComponent[] components, double[,]? responsibilities = null)`. Output contract: dense cluster indices in `[0, clusterCount)`, ordered by first appearance. Responsibilities parameter required by entropy strategies, ignored by geometry strategies.
+- **`src/clustering/gmm/ModalMergeStrategy.cs`**: `IComponentMergeStrategy` implementation. Ascends from each component mean via `ModeAscent.Ascend`; components whose converged modes fall within tolerance are assigned the same cluster. Adaptive default tolerance: 5% of mean pairwise component-mean distance (data-scale independent). Three intersecting ellipsoids (one density basin) → all means converge to one mode → `map = [0,0,0]` (one cluster, three-component sub-mixture).
+- **`src/clustering/gmm/EntropyMergeStrategy.cs`** + **`MergeStep` record**: Greedy entropy-reduction merging (Baudry et al. 2010). At each step the pair with minimum ΔH is merged into the pooled responsibility matrix. O(K²·N) per step; no re-fitting. `MergeSequence()` returns the full K→1 sequence as `MergeStep[]` (ClusterCount, ClassificationEntropy, ComponentToClusterMap per level). `Merge()` cuts at `targetClusters`.
+- **`src/clustering/gmm/KSweepResult.cs`**: Record: K, BIC, LogLikelihood, NumIterations, IsConverged, Model.
+- **`src/clustering/gmm/BicKSweep.cs`**: `BicKSweep.Run(data, dimension, kMin, kMax, ...)` — Forgy-initialised EM per K, multi-restart, BIC = −2·logL + p·ln(N), p = K·(D + D(D+1)/2 + 1) − 1. Returns `KSweepResult[]` sorted by K. `BestByBic()` convenience selector.
+- **`src/linalg/MatrixNorms.cs`**: `FrobeniusNorm(double[,])`, `FrobeniusDelta(double[,], double[,])` (scatter-delta stopping signal for coordinated expansion), `CopyTo(double[,], double[,])` (M-step snapshot helper).
+- **`src/clustering/gmm/ModeAscent.cs`**: `Ascend(start, components, maxSteps, tol) → double[]` — gradient ascent with backtracking line search (30 halvings), log-space responsibilities, zero-allocation inner loop. `GetBasin(point, components) → int` — component index of the density basin containing a point (pattern-2 tiling stopping test).
+- **`src/clustering/gmm/BhattacharyyaCoefficient.cs`**: `Between(a, b) → double` (BC = exp(−D_B)), `Distance(a, b) → double` (D_B with Mahalanobis + log-det terms, derives ln|Σ| from cached `LogNormalizationFactor`). Raw-array overloads for merge strategy implementations.
+
+### Changed
+
+- **`src/clustering/gmm/GaussianMixtureModel.cs`**: New `Fit(data, IResponsibilityConstraint, ...)` overload. `FitCore` accepts `IResponsibilityConstraint? constraint = null`; calls `constraint?.Apply(_responsibilities, n, K, iter, maxIterations)` after E-step. Existing unconstrained and hard-label callers unchanged.
+- **`src/synthetic/CrescentEllipsoid.cs`** + **`MobiusEllipsoid.cs`**: `EllipsoidShellMode` enum (`Solid`, `Gaussian`, `Hollow`, `Annular`). New parameter on `GenerateCrescentAndEllipsoid` / `GenerateMobiusAndEllipsoid`. Sampling loop replaces old cbrt-CDF with mode switch.
+- **`src/viz-core/schema_catalog.cs`**: `ellipsoidShellMode` enum dropdown added to `CrescentAndEllipsoidSchema` and `MobiusAndEllipsoidSchema`.
+- **`projects/VizApi/Program.cs`**: `RegenRequest.EllipsoidShellMode` field; both `BuildCrescentAdapted` and `BuildMobiusAdapted` parse and forward to generators.
+
+---
+
+## 2026-05-11 — VizApi GraphBuilder Wiring, VizKernel Enum, Borůvka MST Repair
+
+### Added
+
+- **`src/viz-core/viz_core.cs` — `VizKernel` enum**: New `VizKernel { Gaussian, Cauchy, Laplacian, Linear }` enum. Mirrors `ProximityGraphs.KernelType` without a compile-time dependency on the ProximityGraphs assembly. Keeps VizCore self-contained.
+- **`src/viz-core/schema_catalog.cs` — `kernel`/`bandwidth` in `GraphSection`**: `kernel` enum control (`Gaussian`, `Cauchy`, `Laplacian`, `Linear`) and `bandwidth` float slider (0–10, step 0.05, description "0 = auto-estimate") added to the shared `GraphSection`, which appears in all generator schemas.
+- **`projects/VizApi/Program.cs` — `Kernel`/`Bandwidth` in `RegenRequest`**: New record fields `string Kernel = "Gaussian"` and `double Bandwidth = 0.0` (auto-estimate). Both echoed into `mergedParams` for round-trip.
+
+### Changed
+
+- **`projects/VizApi/Program.cs` — Single `GraphBuilder.Build` call replaces dual `SelectNeighbors`**: `BuildPackage` now calls `GraphBuilder.Build(n, dist, rule, k, ε, kernel, bandwidth, ensureConnected)` once, producing a `CsrGraph`. Edge layer and `LocalTangent` (Wing-2) both consume the same `CsrGraph` — eliminates the second O(N²k) neighbor selection pass that previously ran for flow computation. `LocalTangent` adjacency extracted from `CsrGraph.RowPointers`/`Targets` directly.
+- **`projects/VizApi/Program.cs` — `BuildEdgeLayerFromCsr` replaces `BuildEdgeLayer`**: New helper serializes a `CsrGraph` into an `EdgeLayer`. Edge weights are now **coupling strengths in (0,1]** (high weight = close/similar = bright) instead of raw distances. Iterates upper triangle only to emit each undirected edge once. Old `SelectNeighbors` static helper removed.
+- **`projects/VizApi/Program.cs` — `MstAugmented` rule mapped to `ensureConnected` flag**: `req.NeighborRule == "MstAugmented"` sets `ensureConnected: true` with `ProximityRule.Knn` base, matching the `GraphBuilder` API design (MstAugmented is not a peer topology type).
+- **`src/graphs/construction/MstAugmented.cs` — Borůvka connectivity repair replaces Kruskal**: `EnsureConnected` now uses Borůvka phases instead of all-pairs Kruskal sort. Each phase is one O(N²) sweep finding the cheapest outgoing edge per component; skips intra-component pairs before calling `pairDistance`. Exits immediately if already connected (zero distance calls). Eliminates the `List<(int,int,double)>` of N²/2 tuples (~300 MB at N=5000), `HashSet<long>` dedup set, and O(N² log N) sort. Typical MutualKnn graphs (1–3 disconnected components) complete in 1–2 phases. Produces identical bridging edges to Kruskal for distinct edge weights (all continuous distance functions).
+- **`src/graphs/GraphSelection.cs` — `DisjointSet` removed**: The `internal sealed class DisjointSet` was a duplicate of `UnionFind` without `Reset()` or `GetLabels()`. Removed; all callers (`EnsureConnected`) use `ProximityGraphs.UnionFind` directly.
+
+## 2026-05-11 — Source Reorganization, Graph Primitives Extraction, FisherRao Split
+
+### Added
+
+- **`src/graphs/Edge.cs`** — `public struct Edge { int Source; int Target; double J; }` in namespace `ProximityGraphs`. Extracted from SpcCore; now a standalone graph primitive with no SPC dependency.
+- **`src/graphs/tda/CsrGraph.cs`** — `public struct CsrGraph` in namespace `ProximityGraphs`. Symmetric CSR adjacency: `Targets[]`, `Weights[]`, `RowPointers[]`, `NodeCount`. `static CsrGraph FromEdges(Edge[], int)` — two-pass symmetric build (degree count → prefix sum → cursor fill). Extracted from SpcCore.
+- **`src/graphs/tda/UnionFind.cs`** — `public sealed class UnionFind` in namespace `ProximityGraphs`. Path-compressed union-by-size. Methods: `Find(int)`, `Union(int, int)`, `Reset()` (in-place, no realloc), `GetLabels()` (root per node). Replaces both `FastUnionFind` (spc.potts.cs) and `DisjointSet` (GraphSelection.cs) as the single union-find implementation.
+- **`src/graphs/GraphBuilder.cs`** — New `public static class GraphBuilder` in namespace `ProximityGraphs`. Three-phase parallel graph construction pipeline, independent of SPC. `Build(n, dist, rule, k, ε, kernel, bandwidth, ensureConnected) → CsrGraph`: Phase 1 (parallel, via construction methods) → optional `EnsureConnected` → Phase 2 (sequential bandwidth estimation + kernel weighting → `CsrGraph.FromEdges`). `ToGraph(NeighborSelection, kernel, bandwidth) → CsrGraph`: Phase 2 only, for retrying different kernels on the same topology. `Validate(CsrGraph) → GraphDiagnostics`: component count, largest component coverage, isolated node count via `UnionFind`. `ProximityRule { Knn, MutualKnn, EpsilonBall }` enum (MstAugmented removed — handled via `ensureConnected: bool`). `KernelType { Gaussian, Cauchy, Laplacian, Linear }` enum. `GraphDiagnostics` struct.
+- **`src/graphs/construction/MstAugmented.cs`** — `ProximityGraph.SelectMstAugmented` shim (calls `SelectMutualKnn` + `EnsureConnected`) and `ProximityGraph.EnsureConnected(NeighborSelection, int, Func<int,int,double>) → NeighborSelection`. Topology-agnostic MST bridging; original selection unmodified.
+- **`src/metrics/FisherRaoHalfPlane.cs`** — New `public static class FisherRaoHalfPlane`. Computes the exact Fisher-Rao geodesic for univariate Gaussians parameterized as `(μ, log_σ)` on the Poincaré half-plane: $d = \sqrt{2} \cdot \text{arccosh}(1 + (\mu_1-\mu_2)^2 + 2(\sigma_1-\sigma_2)^2) / (2\sigma_1\sigma_2))$. Recovers σ via `Math.Exp(log_σ)`. Appropriate for `GaussianManifold` features; distinct from the Bhattacharyya (discrete simplex) form.
+- **`src/clustering/hdbscan/placeholder.cs`** — Placeholder for future HDBSCAN implementation under the `clustering/` namespace.
+
+### Changed
+
+- **Source tree reorganization**:
+  - `src/graphs/construction/` — `Knn.cs`, `MutualKnn.cs`, `EpsilonBall.cs` moved here (were at `src/graphs/`)
+  - `src/graphs/coupling/` — `BandwidthEstimation.cs`, `Gaussian.cs`, `Cauchy.cs`, `Laplacian.cs`, `Linear.cs` moved here (were at `src/coupling/`)
+  - `src/clustering/spc/` — `spc.batch.cs`, `spc.checkpoint.cs`, `spc.graph.cs`, `spc.potts.cs`, `spc.synthetic.cs`, `spc.thermo.cs` moved here (were at `src/`)
+  - `src/clustering/spc/thermo/` — `chi.cs`, `kl.cs`, `mhbs.cs` moved here (were at `src/spc-thermo/`)
+  - `src/clustering/gmm/` — `GaussianComponent.cs`, `GaussianMixtureModel.cs` moved here (were at `src/gmm/`)
+  - All `.csproj` `<Compile Include>` paths updated to match new locations.
+- **`src/metrics/FisherRao.cs` → `FisherRaoSimplex`**: Class renamed from `FisherRao` to `FisherRaoSimplex`. Computes Bhattacharyya angle — correct for discrete probability mass vectors. All callers updated. `SpcMetric.FisherRaoSimplex` and `VizMetric.FisherRaoSimplex` added; `FisherRaoHalfPlane` added as separate enum value.
+- **`src/clustering/spc/spc.graph.cs`** — Stripped of `Edge`, `CsrGraph`, `SelectNeighbors`, `ConvertToCoupling`, `BuildGraphFromFeatures`. `BuildGraphFromMetric` now returns `CsrGraph` (was `Edge[]`). `BuildFeatureMetricGraph`, `BuildMahalanobisMetricGraph`, `BuildGraphFromSimHashes` all delegate to `GraphBuilder.Build(...)`. `SpcToProximityRule` maps `MstAugmented → MutualKnn`; `SpcToEnsureConnected` returns `true` for `MstAugmented`. `ValidateGraph` delegates to `GraphBuilder.Validate`.
+- **`src/clustering/spc/spc.potts.cs`** — `FastUnionFind` class removed; replaced with `new UnionFind(N)` from `ProximityGraphs`.
+- **`src/clustering/spc/spc.batch.cs`** — `RunSimulationCore` signature changed from `(Edge[] edges, ...)` to `(CsrGraph graph, ...)`. `result.Graph = graph` directly (no longer calls `CsrGraph.FromEdges`).
+- **`projects/VizApi/Program.cs`** — `FisherRaoSimplex`/`FisherRaoHalfPlane` metric dispatch cases added; `RowOf(features, d, i)` helper added for metrics that require `double[]` row extraction. `using DistanceMetrics;` added. `DistanceMetrics` project reference added to `VizApi.csproj`.
+- **`src/viz-core/schema_catalog.cs`** — `FisherRaoSimplex`/`FisherRaoHalfPlane` added to metric enum values in `GraphSection`.
+
+## 2026-05-11 — Coupling Kernel Bandwidth Estimation, IRLS Weight Capture Fix
+
+### Added
+
+- **`src/coupling/BandwidthEstimation.cs`**: New `CouplingKernels.BandwidthEstimation` static class. Two-layer design: per-kernel routes (`ForGaussian`, `ForLaplacian`, `ForCauchy`, `ForLinear`) apply the natural estimator + consistency factor for each kernel; kernel-agnostic primitives (`Mean`, `Median`, `Mad`, `Max`) exposed for custom routing. Consistency factors: `GaussianFactor = 1.4826` (1/Φ⁻¹(0.75)), `LaplacianFactor = 1.4427` (1/ln(2)), `CauchyFactor = 1.0` (MAD of Cauchy(0,γ) = γ exactly). `ForLinear` uses max (compact support — δ should span the neighbourhood). `Mad` has two overloads: caller-supplied location and internally computed sample median. All sort-based methods take a caller-supplied scratch span. `DeltaMuMean`, `DeltaMuMedian`, and `SigmaEstimatorMad` from `.depr` are now superseded by this file.
+
+### Fixed
+
+- **`src/optimization/irls.cs` — IRLS weight capture timing**: After the main iteration loop, weights are now recomputed at the final converged `destination` position before being published to `finalIrlsWeights`. Previously, `wirls` reflected distances from the pre-update position of the last iteration step rather than the converged location — causing scatter matrices to be computed at a subtly stale position. Behaviour now matches `EuclideanMedian.IrlsLoop` which recomputes weights post-convergence. The singularity/regularise branch is mirrored identically in the recompute pass.
+
+## 2026-05-11 — Interactive Gen Panel, FigureEight Möbius Spine, Colour & Default Rendering
+
+### Added
+
+- **`src/synthetic/MobiusEllipsoid.cs` — `MobiusSpineShape` enum + FigureEight variant**: New `MobiusSpineShape { Circle, FigureEight }` enum. `FigureEight` uses Lissajous parametrization `cx=R·sinθ, cy=R/2·sin2θ`. Frenet frame: `T=(cosθ, cos2θ)/‖·‖`, `N=cross(ẑ,T)=(-Ty,Tx,0)`. Half-twist applied identically to circle case so Möbius monodromy is preserved. Speed `‖Ṫ‖>0` everywhere (cos θ=0 and cos 2θ=0 cannot coincide). Width splay: `effHalfWidth = halfWidth·effBias·(1−splayFactor·(1−|sinθ|))` — full width at loop extremes, narrowed at center crossing.
+- **`src/synthetic/MobiusEllipsoid.cs` — `MobiusPlacement.CenterCrossing`**: New enum value representing the figure-eight self-intersection at the origin — maximum topological stress point for the bow-tie shape.
+- **`src/synthetic/MobiusEllipsoid.cs` — `spineShape`/`splayFactor` params**: New optional params `MobiusSpineShape spineShape = MobiusSpineShape.FigureEight` and `double splayFactor = 0.7` added to `GenerateMobiusAndEllipsoid`. Echoed to `parameters` dict as `spineShape` and `splayFactor`.
+- **`src/synthetic/MobiusEllipsoid.cs` — shape-aware placement helpers**: `ResolveMobiusEllipsoidCenter` now accepts `MobiusSpineShape spineShape`. For `FigureEight`, `OrthogonalCenterCross` maps to crossing origin `(0,0,z)` instead of left-lobe tip `(-R,0,z)`. `PeripheralElbow` maps to the Y-extreme of the right lobe `(R/√2, R/2, ·)`. `ApproximateMobiusCovariance` accepts optional `spineShape`: for `FigureEight` returns anisotropic `diag(R²/2+varZ, R²/8+varZ, varZ)` reflecting the asymmetric loop reach.
+- **`projects/VizApi/Program.cs` — `SpineShape`/`SplayFactor` in `RegenRequest`**: New record fields `string SpineShape = "FigureEight"` and `double SplayFactor = 0.7`. Parsed via `Enum.TryParse<MobiusSpineShape>` and forwarded to `GenerateMobiusAndEllipsoid`.
+- **`src/viz-core/schema_catalog.cs` — `spineShape`/`splayFactor` schema entries**: `spineShape` enum (`Circle`, `FigureEight`) and `splayFactor` float (0–1, step 0.05) added to Möbius params section after `radialBias`. `CenterCrossing` added to Möbius placement enum values.
+
+### Changed
+
+- **`src/viz-core/viewer.html` — interactive gen panel auto-regen**: `doRegen()` extracted as a named function. `doRegenDebounced()` wrapper (380 ms) added for continuous inputs. Event listeners added per control type: `int` fields fire `doRegen` on `Enter` keydown; `bool` checkboxes and `enum` dropdowns fire `doRegen` on `change`; `float` range sliders and `vec3` triples call `doRegenDebounced` on `input`. The Regenerate button still fires `doRegen` directly.
+- **`src/viz-core/viewer.html` — graph wire colour**: Wire tint now mixes cluster hue 35% with white 65% before scaling to 0.42 brightness (was `clusterColor × 0.18`). Pastel/chalky wires remain in the same hue family as the point cloud but are visually distinct from the fully saturated point colours.
+- **`projects/VizApi/Program.cs` — default `RegenRequest` values**:
+  - `CrescentPoints`: 300 → 10 000
+  - `MobiusPoints`: 400 → 10 000
+  - `EllipsoidPoints`: 180 → 5 000
+  - `CrossSection`: `Ribbon` → `Annular`
+  - `SpineShape`: `Circle` → `FigureEight`
+  - `Placement` (record default): `NearOpenFace` → `OrthogonalElbowIntersect`
+  - Crescent builder fallback: `NearOpenFace` → `OrthogonalElbowIntersect`
+  - Möbius builder fallback: `NearSeam` → `CenterCrossing`
+- **`src/viz-core/scene_renderer.cs` — `ShowGaussianEllipsoids` default**: `true` → `false`. Ellipsoids are hidden on initial load; user explicitly enables them via the Ellipsoids toggle.
+
 ## 2026-05-10 — Pass 7: VectorFieldLayer — Wing-2 Empirical Local Tangent Flow
 
 ### Added

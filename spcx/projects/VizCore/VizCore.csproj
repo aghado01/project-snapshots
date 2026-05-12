@@ -11,6 +11,7 @@
     <Compile Include="..\..\src\viz-core\html_render_target.cs" Link="viz-core\html_render_target.cs" />
     <Compile Include="..\..\src\viz-core\serializer.cs"         Link="viz-core\serializer.cs" />
     <Compile Include="..\..\src\viz-core\adapter.cs"            Link="viz-core\adapter.cs" />
+    <Compile Include="..\..\src\viz-core\gmm_adapter.cs"      Link="viz-core\gmm_adapter.cs" />
     <Compile Include="..\..\src\viz-core\param_schema.cs"       Link="viz-core\param_schema.cs" />
     <Compile Include="..\..\src\viz-core\schema_catalog.cs"     Link="viz-core\schema_catalog.cs" />
   </ItemGroup>
@@ -22,5 +23,6 @@
   <ItemGroup>
     <ProjectReference Include="..\SyntheticDatasets\SyntheticDatasets.csproj" />
     <ProjectReference Include="..\LinearAlgebra\LinearAlgebra.csproj" />
+    <ProjectReference Include="..\GaussianMixture\GaussianMixture.csproj" />
   </ItemGroup>
 </Project>
