@@ -7,6 +7,9 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\metrics\*.cs" Link="metrics\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\manifolds\geodesics\FisherRaoSimplex.cs" Link="manifolds\geodesics\FisherRaoSimplex.cs" />
+    <Compile Include="..\..\src\manifolds\geodesics\FisherRaoHalfPlane.cs" Link="manifolds\geodesics\FisherRaoHalfPlane.cs" />
+    <Compile Include="..\..\src\manifolds\geodesics\Poincare.cs" Link="manifolds\geodesics\Poincare.cs" />
   </ItemGroup>
 
   <ItemGroup>

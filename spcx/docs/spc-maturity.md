@@ -4,12 +4,14 @@
 > **Date:** 2026-05-04
 > **Purpose:** Define the renovation that reshapes SPC from its current bespoke-pipeline form into a scientific-computing primitive analogous to the matured `GaussianMixtureModel`. Independent axis from the state engine; can land in parallel.
 > **Sibling document:** [state-engine-design.md](./state-engine-design.md) covers the persistence engine.
+>
+> **Current-tree note:** `src/clustering/spc/` is an active renovation surface, not the authority on target structure. Primitives are being extracted into domain projects and SPC is being rewritten as a consumer of those primitives plus Potts/runtime and thermo residuals. When current tree shape and target shape disagree, this doc and [state-engine-design.md](./state-engine-design.md) win.
 
 ---
 
 ## 1. Why this scope exists
 
-`GaussianMixtureModel` (in `src/gmm/`) has the shape of a scientific-computing primitive: stateful object, decoupled init / fit / inference, full inference surface (`Predict`, `PredictProba`, `Pdf`, `Mahal`, `Sample`), zero-allocation hot path. It is usable on its own without ever touching SPC.
+`GaussianMixtureModel` (in `src/clustering/gmm/`) has the shape of a scientific-computing primitive: stateful object, decoupled init / fit / inference, full inference surface (`Predict`, `PredictProba`, `Pdf`, `Mahal`, `Sample`), zero-allocation hot path. It is usable on its own without ever touching SPC.
 
 SPC is still bespoke. `SpcBatch.Run` is a static entry point that bundles graph build + sweep + checkpoint dispatch. The polymorphic `SpcBatchRequest` (`SimHashes`/`Features`/`Documents`) embeds metric concerns in the request DTO. The runtime hot path conflates SW per-sweep "colors" with equilibrium cluster assignments. There is no separate model-object surface for inference after a fit.
 
@@ -152,7 +154,7 @@ On resume, the driver:
    - Calculate remaining sweeps as `total_sweeps - cumulative_sweep_count`.
    - Continue SW from the loaded spin state for the remaining sweeps, with epoch boundaries continuing to fire at `epoch_sweeps` intervals.
 
-Matches the warm-start logic shape in [src/spc.batch.cs:200-251](../src/spc.batch.cs:200), but with running accumulators added to the resumable state.
+Matches the warm-start logic shape in [src/clustering/spc/batch.cs](../src/clustering/spc/batch.cs), but with running accumulators added to the resumable state.
 
 ## 7. Cross-temperature synchronization
 
@@ -197,7 +199,7 @@ Bundled into this scope rather than landed as one-offs.
 
 ### 10.1 FK susceptibility from bond-cluster sizes
 
-[src/spc-thermo/chi.cs:41-59](../src/spc-thermo/chi.cs:41) currently buckets by spin label:
+[src/clustering/spc/thermo/chi.cs](../src/clustering/spc/thermo/chi.cs) currently buckets by spin label:
 
 ```csharp
 counts[spin] = count + 1;          // bucket by color (Q=20)
@@ -224,7 +226,7 @@ Fix:
 
 ### 10.2 Histogram and analysis cleanups
 
-`SpcAnalysis.BuildHistograms` and other label-bucketed code in [src/spc.thermo.cs](../src/spc.thermo.cs) inherit the same conflation. Same shift to bond-cluster basis, or — where label-bucket histograms are actually what's wanted (visualization of color jitter) — rename to make the distinction explicit.
+`SpcAnalysis.BuildHistograms` and other label-bucketed code in [src/clustering/spc/thermo/thermo.cs](../src/clustering/spc/thermo/thermo.cs) inherit the same conflation. Same shift to bond-cluster basis, or — where label-bucket histograms are actually what's wanted (visualization of color jitter) — rename to make the distinction explicit.
 
 ### 10.3 SW-color vs equilibrium-cluster semantics
 
@@ -291,17 +293,17 @@ Steps 1–6 can land entirely against the existing scaffolding. Step 7 merges th
 
 ## 16. Relationship to current code
 
-| Current                                                                          | Becomes                                                                                                           |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| [src/spc.batch.cs](../src/spc.batch.cs) `SpcBatch.Run` static entry              | Thin convenience wrapper over `new SuperParamagneticClustering(...).Fit(features)`                                |
-| [src/spc.batch.cs](../src/spc.batch.cs) `SpcBatchRequest` polymorphism           | Metric/proximity/kernel become model properties; `features` is uniform per metric                                 |
-| [src/spc.potts.cs](../src/spc.potts.cs) `PottsModel.RunSimulation`               | `PottsModel.Step()` (one sweep) + accumulator state on the instance                                               |
-| [src/spc.potts.cs](../src/spc.potts.cs) `FastUnionFind`                          | Adds non-allocating `WriteRootSizesTo(Span<int>)`                                                                 |
-| [src/spc-thermo/chi.cs](../src/spc-thermo/chi.cs) `ComputeSusceptibility(int[])` | Removed; FK accumulator on `PottsModel` provides the value                                                        |
-| [src/spc.thermo.cs](../src/spc.thermo.cs) `BuildHistograms` (label-bucketed)     | Reframed as cluster-size histograms, sourced from accumulator                                                     |
-| `SpcBatchResult.FinalSpins[T]`                                                   | Stays for diagnostic access (color view); a separate `EquilibriumClusters[T]` exposes the cluster-assignment view |
-| `Parallel.For` over Ts in `RunSimulationCore`                                    | Moves to `SuperParamagneticClustering.Fit`; configurable independent vs. synchronized                             |
-| `System.Random` in `PottsModel`                                                  | Replaced with stateful RNG (xoshiro256++ proposed)                                                                |
+| Current                                                                                                          | Becomes                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [src/clustering/spc/batch.cs](../src/clustering/spc/batch.cs) `SpcBatch.Run`                                     | Thin convenience wrapper over `new SuperParamagneticClustering(...).Fit(features)`                                |
+| [src/clustering/spc/batch.cs](../src/clustering/spc/batch.cs) `SpcBatchRequest`                                  | Metric/proximity/kernel become model properties; `features` is uniform per metric                                 |
+| [src/clustering/spc/potts.cs](../src/clustering/spc/potts.cs) `PottsModel.RunSimulation`                         | `PottsModel.Step()` (one sweep) + accumulator state on the instance                                               |
+| [src/clustering/spc/potts.cs](../src/clustering/spc/potts.cs) `FastUnionFind`                                    | Adds non-allocating `WriteRootSizesTo(Span<int>)`                                                                 |
+| [src/clustering/spc/thermo/chi.cs](../src/clustering/spc/thermo/chi.cs) `ComputeSusceptibility(int[])`           | Removed; FK accumulator on `PottsModel` provides the value                                                        |
+| [src/clustering/spc/thermo/thermo.cs](../src/clustering/spc/thermo/thermo.cs) `BuildHistograms` (label-bucketed) | Reframed as cluster-size histograms, sourced from accumulator                                                     |
+| `SpcBatchResult.FinalSpins[T]`                                                                                   | Stays for diagnostic access (color view); a separate `EquilibriumClusters[T]` exposes the cluster-assignment view |
+| `Parallel.For` over Ts in `RunSimulationCore`                                                                    | Moves to `SuperParamagneticClustering.Fit`; configurable independent vs. synchronized                             |
+| `System.Random` in `PottsModel`                                                                                  | Replaced with stateful RNG (xoshiro256++ proposed)                                                                |
 
 ### 16.1 Current checkpoint on-disk shape (debt)
 
@@ -309,7 +311,7 @@ Captured for orientation; the shape is debt and will be replaced when the state-
 
 `SpcBatchRequest.CheckpointDirectory` is a working root. Each run writes under `{root}/{yyyyMMdd_HHmmss}/` with payload-type folders — `temperature-checkpoints/`, `temperature-observations/`, `handoff-readiness/`, `gmm-handoff-state/` — plus `spc_{runStamp}.manifest.json` at the run root. Disk runs default to greedy non-redundant persistence: small JSON checkpoint summaries and compressed binary `.bin.br` spin delta-frame artifacts. `SpcBatchRequest.CheckpointPersistence` configures which artifact kinds are written; `EpochSweepCount` is run-start configuration that emits partial-temperature checkpoints for round-robin / supervisor duty cycles.
 
-Partial temperature states use `IsComplete=false`, `CurrentSpinsArtifactId`, `EpochCount`, and `SweepCount`; only complete states populate the resume-skip path (see §6.3). Checkpoints do not persist susceptibility or other thermodynamic analysis values; supervisor-side thermodynamic checks live in `src/spc-thermo/` (e.g. `SpcAnalysis.AnalyzeCheckpointSusceptibility` in `chi.cs`). The manifest tracks relative path, source / previous / base artifact links, payload type, compression, encoding, sequence, byte length, and pipeline stage.
+Partial temperature states use `IsComplete=false`, `CurrentSpinsArtifactId`, `EpochCount`, and `SweepCount`; only complete states populate the resume-skip path (see §6.3). Checkpoints do not persist susceptibility or other thermodynamic analysis values; supervisor-side thermodynamic checks live in `src/clustering/spc/thermo/` (e.g. `SpcAnalysis.AnalyzeCheckpointSusceptibility` in `chi.cs`). The manifest tracks relative path, source / previous / base artifact links, payload type, compression, encoding, sequence, byte length, and pipeline stage.
 
 Treat this as transitional: it is the as-built behaviour, not the design target. New code should align with the state-engine codec contract (§24 of state-engine-design.md) rather than extending the current implementation.
 
@@ -495,7 +497,7 @@ A common reaction to SPC's "graph + clustering" framing is to identify it with s
 
 1. **A full distribution over partitions, not a regularizer.** The partition function — what exact Bayesian inference on partitions would integrate over — is what SW samples from. The Laplacian quadratic form is a smoothness penalty, not a probability distribution.
 
-2. **Multi-scale structure discovered, not assumed.** A spectral method gives one topology, fixed by k. SPC produces a _family_ of partition states across T, and the dynamics expose physically meaningful scales as a critical-adjacent regime — not a single point T_c but a goldilocks zone of temperatures where partition structure is informative for the dataset under the chosen graph + metric + kernel. Susceptibility peaks (FK estimator) are the classical first-pass signal, but they are one of several thermodynamic signatures: fan-out KL across temperature steps, Mahalanobis-based regime characterizations, cluster-count plateaus, and other signals can co-locate or differ across this band. With expanded graph constructions, distance metrics, and coupling kernels the precise shape of this regime is data-dependent and not collapsible to one number. The analysis layer in `src/spc-thermo/` (currently `chi.cs`, `kl.cs`, `mhbs.cs`) is intentionally extensible to additional thermodynamic analyses as the operating space grows; the framing here treats susceptibility as the canonical entry point, not the totality of what's available.
+2. **Multi-scale structure discovered, not assumed.** A spectral method gives one topology, fixed by k. SPC produces a _family_ of partition states across T, and the dynamics expose physically meaningful scales as a critical-adjacent regime — not a single point T_c but a goldilocks zone of temperatures where partition structure is informative for the dataset under the chosen graph + metric + kernel. Susceptibility peaks (FK estimator) are the classical first-pass signal, but they are one of several thermodynamic signatures: fan-out KL across temperature steps, Mahalanobis-based regime characterizations, cluster-count plateaus, and other signals can co-locate or differ across this band. With expanded graph constructions, distance metrics, and coupling kernels the precise shape of this regime is data-dependent and not collapsible to one number. The analysis layer in `src/clustering/spc/thermo/` (currently `chi.cs`, `kl.cs`, `mhbs.cs`, `thermo.cs`) is intentionally extensible to additional thermodynamic analyses as the operating space grows; the framing here treats susceptibility as the canonical entry point, not the totality of what's available.
 
 3. **Stochastic dynamics that explore the configuration landscape.** Per-point coherence (how stably a label holds across sweeps) is a Monte-Carlo-derived measure of cluster-identity stability with no deterministic-eigendecomposition analog. This is what the GMM handoff downstream consumes — boundary points downweighted by `RobustLeafEstimator` (§17.5) are _thermodynamically_ unstable, oscillating between basins, not just spatially ambiguous.
 

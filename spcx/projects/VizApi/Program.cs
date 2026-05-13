@@ -54,6 +54,9 @@ static ScenePackage BuildPackage(RegenRequest req)
     var (adapted, title) = req.Generator switch
     {
         "MobiusAndEllipsoid" => BuildMobiusAdapted(req),
+        "HyperbolicBlobs" => BuildHyperbolicBlobsAdapted(req),
+        "Simplex" => BuildSimplexAdapted(req),
+        "GaussianManifold" => BuildGaussianManifoldAdapted(req),
         _ => BuildCrescentAdapted(req),
     };
 
@@ -71,12 +74,15 @@ static ScenePackage BuildPackage(RegenRequest req)
         "EpsilonBall" => ProximityRule.EpsilonBall,
         _ => ProximityRule.Knn,
     };
-    bool ensureConnected = req.NeighborRule == "MstAugmented";
+    // MST is a connectivity modifier — it bridges disconnected components on
+    // top of any rule. Used to be a fake 4th rule; now it's an orthogonal flag.
+    bool ensureConnected = req.EnsureConnected;
 
     Func<int, int, double> dist = metric switch
     {
         VizMetric.Manhattan => (i, j) => ManhattanDist(features, d, i, j),
         VizMetric.Cosine => (i, j) => CosineDist(features, d, i, j),
+        VizMetric.Poincare => (i, j) => Poincare.Distance(RowOf(features, d, i), RowOf(features, d, j)),
         VizMetric.FisherRaoSimplex => (i, j) => FisherRaoSimplex.Distance(RowOf(features, d, i), RowOf(features, d, j)),
         VizMetric.FisherRaoHalfPlane => (i, j) => FisherRaoHalfPlane.Distance(RowOf(features, d, i), RowOf(features, d, j)),
         _ => (i, j) => EuclideanDist(features, d, i, j),
@@ -95,11 +101,13 @@ static ScenePackage BuildPackage(RegenRequest req)
         ensureConnected: ensureConnected);
 
     // ── Edge layer: serialize CsrGraph — weights are coupling strengths in (0,1] ──
+    // MST is a connectivity modifier (req.EnsureConnected), not its own rule —
+    // the spec captures the primary rule only. The applied modifiers travel
+    // back to the viewer via generator_params so they can be shown in the UI.
     ProximitySpec spec = req.NeighborRule switch
     {
         "MutualKnn" => new MutualKnnSpec(req.KnnK),
         "EpsilonBall" => new EpsilonBallSpec(req.EpsilonBallEpsilon),
-        "MstAugmented" => new MstAugmentedSpec(req.KnnK),
         _ => new KnnSpec(req.KnnK),
     };
     var edgeLayers = new List<EdgeLayer> { BuildEdgeLayerFromCsr(csrGraph, n, gtLabels, metric, spec) };
@@ -139,19 +147,30 @@ static ScenePackage BuildPackage(RegenRequest req)
         new VectorFieldLayer("Local PCA Flow", tangentVectors, n, Math.Min(d, 3)),
     };
 
-    // ── Shared: GMM overlays ─────────────────────────────────────────────────
-    // Spine-aware overlay: derives σ from spine geometry (analytic, not fitted).
-    // Fitted EM overlay: runs a real GMM on the point cloud at the same K.
+    // ── Shared: GMM overlay (single layer, gated by GmmMode) ─────────────────
+    // The viewer picks Oracle (spine-aware, analytic σ) or EM (real fit on the
+    // point cloud) via a dropdown. We emit exactly one GaussianLayer so the two
+    // modes don't visually pile up. ComponentToClusterMap is populated so each
+    // ellipsoid is coloured by the cluster its points belong to, matching the
+    // point-cloud palette.
     int gmmPos = Math.Clamp((int)Math.Round(req.GmmComponents), 0, 4);
     int gmmK = 1 << gmmPos;
-    var gaussianLayers = new List<GaussianLayer>(adapted.GaussianLayers);
-    foreach (var gmmLayer in BuildGmmOverlaysFromSpines(adapted.SpineLayers, gmmK))
-        gaussianLayers.Add(gmmLayer);
+    var gaussianLayers = new List<GaussianLayer>();
 
-    var fittedGmm = new GaussianMixtureModel(k: gmmK, dimension: d);
-    fittedGmm.RobustInitialize(points2d);
-    fittedGmm.Fit(points2d);
-    gaussianLayers.Add(GmmVizAdapter.ToGaussianLayer(fittedGmm, $"GMM (EM) K={gmmK}"));
+    bool useEm = string.Equals(req.GmmMode, "EM", StringComparison.OrdinalIgnoreCase);
+    if (useEm)
+    {
+        var fittedGmm = new GaussianMixtureModel(k: gmmK, dimension: d);
+        fittedGmm.RobustInitialize(points2d);
+        fittedGmm.Fit(points2d);
+        int[] ctcMap = ComponentToClusterMap(fittedGmm, points2d, gtLabels);
+        gaussianLayers.Add(BuildGaussianLayerFromGmm(fittedGmm, $"GMM (EM) K={gmmK}", ctcMap));
+    }
+    else
+    {
+        foreach (var gmmLayer in BuildGmmOverlaysFromSpines(adapted.SpineLayers, gmmK))
+            gaussianLayers.Add(gmmLayer);
+    }
 
     var scalarLayers = new List<ScalarLayer>(adapted.ScalarLayers)
     {
@@ -169,7 +188,9 @@ static ScenePackage BuildPackage(RegenRequest req)
     mergedParams["epsilonBallEpsilon"] = req.EpsilonBallEpsilon;
     mergedParams["kernel"] = req.Kernel;
     mergedParams["bandwidth"] = req.Bandwidth;
+    mergedParams["ensureConnected"] = req.EnsureConnected;
     mergedParams["gmmComponents"] = req.GmmComponents;
+    mergedParams["gmmMode"] = req.GmmMode;
     mergedParams["showFlow"] = req.ShowFlow;
 
     var vizDataset = new VizDataset(
@@ -219,8 +240,74 @@ static IEnumerable<GaussianLayer> BuildGmmOverlaysFromSpines(
 
         int stride = Math.Max(1, M / K);
         int offset = stride / 2;
-        yield return BuildGmmOverlayLayer(spine, sigmaLong, sigmaPerp, stride, offset, $"GMM (Oracle) K={K}");
+        yield return BuildGmmOverlayLayer(
+            spine, sigmaLong, sigmaPerp, stride, offset,
+            $"GMM (Oracle) K={K}", spine.ClusterIdx);
     }
+}
+
+// ── EM → cluster mapping ──────────────────────────────────────────────────────
+// Per-component dominant GT cluster, used to colour ellipsoids in lockstep with
+// the underlying point cloud. Hard-assigns points via gmm.Predict, then takes
+// the mode of GT labels per component. Empty components fall back to component
+// index so legacy palette behaviour is preserved.
+static int[] ComponentToClusterMap(GaussianMixtureModel gmm, double[][] points, int[] gtLabels)
+{
+    int k = gmm.K;
+    int[] map = new int[k];
+    if (gtLabels.Length == 0)
+    {
+        for (int i = 0; i < k; i++) map[i] = i;
+        return map;
+    }
+
+    int[] preds = gmm.Predict(points);
+
+    int maxLabel = 0;
+    for (int i = 0; i < gtLabels.Length; i++)
+        if (gtLabels[i] > maxLabel) maxLabel = gtLabels[i];
+    int labelSpan = maxLabel + 1;
+
+    var counts = new int[k * labelSpan];
+    for (int i = 0; i < preds.Length; i++)
+    {
+        int c = preds[i];
+        int lbl = gtLabels[i];
+        if (lbl < 0) continue;
+        counts[c * labelSpan + lbl]++;
+    }
+
+    for (int c = 0; c < k; c++)
+    {
+        int bestLabel = c;  // fallback: empty component keeps component index
+        int bestCount = 0;
+        for (int lbl = 0; lbl < labelSpan; lbl++)
+        {
+            int v = counts[c * labelSpan + lbl];
+            if (v > bestCount) { bestCount = v; bestLabel = lbl; }
+        }
+        map[c] = bestLabel;
+    }
+    return map;
+}
+
+static GaussianLayer BuildGaussianLayerFromGmm(GaussianMixtureModel gmm, string name, int[]? ctcMap)
+{
+    int k = gmm.K;
+    int d = gmm.Dimension;
+    var means = new double[k * d];
+    var covs = new double[k * d * d];
+    var weights = new double[k];
+    for (int ki = 0; ki < k; ki++)
+    {
+        var comp = gmm.Components[ki];
+        weights[ki] = comp.Weight;
+        for (int dim = 0; dim < d; dim++) means[ki * d + dim] = comp.Mean[dim];
+        for (int r = 0; r < d; r++)
+            for (int c = 0; c < d; c++)
+                covs[ki * d * d + r * d + c] = comp.Covariance[r, c];
+    }
+    return new GaussianLayer(name, means, covs, weights, k, d, ctcMap);
 }
 
 // ── Phase 1: Crescent synthesis + adaptation (no edges, no overlay) ──────────
@@ -290,6 +377,51 @@ static (VizDataset adapted, string title) BuildMobiusAdapted(RegenRequest req)
         seed: req.Seed);
 
     return (new SyntheticDatasetAdapter().Adapt(dataset), "Möbius + Ellipsoid");
+}
+
+// ── Phase 1: HyperbolicBlobs synthesis + adaptation ─────────────────────────
+// Pairs with the Poincaré metric — points live strictly inside the open unit
+// ball so the hyperbolic geodesic is exact rather than saturated to 1e9.
+static (VizDataset adapted, string title) BuildHyperbolicBlobsAdapted(RegenRequest req)
+{
+    var dataset = GenerateHyperbolicBlobs(
+        clusterCount: req.ClusterCount,
+        pointsPerCluster: req.PointsPerCluster,
+        dimensions: req.Dimensions,
+        separation: req.Separation,
+        spread: req.Spread,
+        seed: req.Seed);
+    return (new SyntheticDatasetAdapter().Adapt(dataset), "Hyperbolic Blobs");
+}
+
+// ── Phase 1: Simplex synthesis + adaptation ─────────────────────────────────
+// Pairs with Fisher–Rao (simplex). Each point is a probability vector. With
+// disjointSupports = true, clusters concentrate on different category ranges;
+// the first three categories project as XYZ for the 3D viewer.
+static (VizDataset adapted, string title) BuildSimplexAdapted(RegenRequest req)
+{
+    var dataset = GenerateSimplex(
+        clusterCount: req.ClusterCount,
+        pointsPerCluster: req.PointsPerCluster,
+        categories: req.Categories,
+        disjointSupports: req.DisjointSupports,
+        concentration: req.Concentration,
+        seed: req.Seed);
+    return (new SyntheticDatasetAdapter().Adapt(dataset), "Simplex (probability vectors)");
+}
+
+// ── Phase 1: GaussianManifold synthesis + adaptation ────────────────────────
+// Pairs with Fisher–Rao (half-plane). Each point is (μ, log σ) on the 1D
+// Gaussian statistical manifold. Euclidean and Fisher–Rao topologies disagree —
+// the storytelling case for why information geometry matters.
+static (VizDataset adapted, string title) BuildGaussianManifoldAdapted(RegenRequest req)
+{
+    var dataset = GenerateGaussianManifold(
+        clusterCount: req.ClusterCount,
+        pointsPerCluster: req.PointsPerCluster,
+        clusterRadius: req.ClusterRadius,
+        seed: req.Seed);
+    return (new SyntheticDatasetAdapter().Adapt(dataset), "Gaussian Manifold (μ, log σ)");
 }
 
 static int[] ExtractGtLabels(VizDataset ds)
@@ -375,7 +507,8 @@ static GaussianLayer BuildGmmOverlayLayer(
     double sigmaPerp,
     int stride = 4,
     int offset = 0,
-    string name = "GMM K=1")
+    string name = "GMM K=1",
+    int clusterIdx = 0)
 {
     var ss = spineLayer.SpineSamples;   // M × D (D=3 for crescent in XY)
     int M = ss.Length;
@@ -389,6 +522,12 @@ static GaussianLayer BuildGmmOverlayLayer(
     var covs = new double[K * geomDim * geomDim];
     var weights = new double[K];
     double w = 1.0 / K;
+
+    // Oracle ellipsoids all belong to the same physical cluster (the spine's),
+    // so the ctc map is constant. This makes the viewer colour every Oracle
+    // ellipsoid with that cluster's palette entry.
+    var ctcMap = new int[K];
+    for (int i = 0; i < K; i++) ctcMap[i] = clusterIdx;
 
     for (int ci = 0; ci < K; ci++)
     {
@@ -433,7 +572,7 @@ static GaussianLayer BuildGmmOverlayLayer(
         weights[ci] = w;
     }
 
-    return new GaussianLayer(name, means, covs, weights, K, geomDim);
+    return new GaussianLayer(name, means, covs, weights, K, geomDim, ctcMap);
 }
 
 static double ManhattanDist(double[] features, int d, int i, int j)
@@ -492,6 +631,17 @@ record RegenRequest(
     string CrossSection = "Annular",
     string SpineShape = "FigureEight",
     double SplayFactor = 0.7,
+    // ── HyperbolicBlobs / Simplex / GaussianManifold shared knobs ────────────
+    int ClusterCount = 3,
+    int PointsPerCluster = 200,
+    double Separation = 3.0,
+    double Spread = 0.5,
+    // ── Simplex-specific ───────────────────────────────────────────────────────
+    int Categories = 12,
+    bool DisjointSupports = true,
+    double Concentration = 40.0,
+    // ── GaussianManifold-specific ─────────────────────────────────────────────
+    double ClusterRadius = 0.3,
     // ── Shared ellipsoid ───────────────────────────────────────────────────────
     int EllipsoidPoints = 5000,
     double[]? EllipsoidAxes = null,
@@ -511,5 +661,7 @@ record RegenRequest(
     double EpsilonBallEpsilon = 0.5,
     string Kernel = "Gaussian",
     double Bandwidth = 0.0,    // 0 = auto-estimate via BandwidthEstimation
+    bool EnsureConnected = false,  // MST modifier: bridge disconnected components
                                // ── Overlay ────────────────────────────────────────────────────────────────
+    string GmmMode = "Oracle", // "Oracle" or "EM"
     bool ShowFlow = false);

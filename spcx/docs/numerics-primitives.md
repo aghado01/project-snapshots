@@ -15,15 +15,15 @@ This refactor exists to support the **Park & You (2026) geometric median on prod
 F_median(p, q) = Σᵢ wᵢ √(d_M(p, xᵢ)² + d_N(q, yᵢ)²)
 ```
 
-The non-separability of the L¹ objective — `√(d_M² + d_N²)` couples the two factors through the shared denominator — is precisely what existing single-manifold median methods cannot handle, and is the reason a refactor is required rather than a rebrand of existing code. From the paper (§2.2): *"the geometric median involves an ℓ¹-like objective that couples the components through a norm structure. This non-separability introduces both theoretical and computational challenges, **precluding the direct application of existing median methods designed for single manifolds.**"*
+The non-separability of the L¹ objective — `√(d_M² + d_N²)` couples the two factors through the shared denominator — is precisely what existing single-manifold median methods cannot handle, and is the reason a refactor is required rather than a rebrand of existing code. From the paper (§2.2): _"the geometric median involves an ℓ¹-like objective that couples the components through a norm structure. This non-separability introduces both theoretical and computational challenges, **precluding the direct application of existing median methods designed for single manifolds.**"_
 
 The current `src/estimators/` folder reflects this need imperfectly. Three paradigms coexist that share structural pattern but no implementation:
 
-| Paradigm | Files | Coverage |
-|---|---|---|
-| Scalar over distance samples | `DeltaMuMean.cs`, `DeltaMuMedian.cs`, `SigmaEstimatorMad.cs` | Special case for SPC bandwidth (relocates per §9) |
-| Vector Euclidean with index/weight | `WeightedMean.cs`, `WeightedGeometricMedian.cs`, `MetricMedoid.cs` | Single-factor flat case |
-| Riemannian product | `ManifoldMedian.cs` (Weiszfeld + subgradient on `M×N`) | Park & You algorithm — current state of the art |
+| Paradigm                           | Files                                                              | Coverage                                          |
+| ---------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------- |
+| Scalar over distance samples       | `DeltaMuMean.cs`, `DeltaMuMedian.cs`, `SigmaEstimatorMad.cs`       | Special case for SPC bandwidth (relocates per §9) |
+| Vector Euclidean with index/weight | `WeightedMean.cs`, `WeightedGeometricMedian.cs`, `MetricMedoid.cs` | Single-factor flat case                           |
+| Riemannian product                 | `ManifoldMedian.cs` (Weiszfeld + subgradient on `M×N`)             | Park & You algorithm — current state of the art   |
 
 **The third paradigm is the target.** The unification work is to recognise that the first two collapse to it: vector Euclidean is `IsFlat = true` on a single factor; the scalar SPC helper isn't an estimator at all (§9). The mathematical generality of the Park & You product-manifold formulation already subsumes both — what's missing is the trait-dispatched specialisation that lets the flat case avoid paying for log/exp it doesn't need, and the variadic generalisation that lets `k > 2` factor manifolds compose without rewriting the solver.
 
@@ -65,11 +65,11 @@ The split between `Optimization/` and `linalg/` is deliberate: linalg is for mat
 
 The unifying observation: **mean, median, and robust M-estimators are all minimisers of `Σ wᵢ ρ(d(p, xᵢ))` for different choices of `ρ`**, solved by iteratively reweighted least squares (IRLS) on a manifold.
 
-| Today | ρ | IRLS form |
-|---|---|---|
-| Karcher / Fréchet mean | `r²/2` | one iteration with constant weights → closed form |
-| Weiszfeld geometric median | `r` | iterate with `wᵢ ← wᵢ / d`, plus singularity policy at coincident points |
-| Robust M-estimator (future) | Huber, Tukey, Hampel | iterate with `wᵢ ← wᵢ · ψ(d) / d` |
+| Today                       | ρ                    | IRLS form                                                                |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------ |
+| Karcher / Fréchet mean      | `r²/2`               | one iteration with constant weights → closed form                        |
+| Weiszfeld geometric median  | `r`                  | iterate with `wᵢ ← wᵢ / d`, plus singularity policy at coincident points |
+| Robust M-estimator (future) | Huber, Tukey, Hampel | iterate with `wᵢ ← wᵢ · ψ(d) / d`                                        |
 
 Translation table from current code to target:
 
@@ -94,7 +94,7 @@ Two side-effects fall out of the trait composition:
 
 ### Hybrid Weiszfeld + subgradient is the default
 
-Park & You §4.1.2 explicitly recommends the hybrid scheme, citing Beck & Sabach (2015): *"In practice, hybrid schemes that use Weiszfeld iterations when far from singularities and fall back to subgradient updates when near data points can be particularly effective."* The existing `ManifoldMedian.cs` ships both `ComputeWeiszfeld` and `ComputeSubgradient` for exactly this reason. The unified solver should expose **hybrid as the default mode**:
+Park & You §4.1.2 explicitly recommends the hybrid scheme, citing Beck & Sabach (2015): _"In practice, hybrid schemes that use Weiszfeld iterations when far from singularities and fall back to subgradient updates when near data points can be particularly effective."_ The existing `ManifoldMedian.cs` ships both `ComputeWeiszfeld` and `ComputeSubgradient` for exactly this reason. The unified solver should expose **hybrid as the default mode**:
 
 - Smooth regime (`min_i d(p, xᵢ) > threshold`): Weiszfeld update.
 - Near-singular regime (`min_i d(p, xᵢ) ≤ threshold`): subgradient step with decaying step size `η_k = η_0 / √(k+1)`.
@@ -106,20 +106,20 @@ Pure-Weiszfeld and pure-Subgradient modes remain accessible via `HybridMode = We
 
 The unified solver dispatches on three orthogonal axes. They compose multiplicatively:
 
-| Axis | Values | Stage | Cost |
-|---|---|---|---|
-| **Geometry topology** (`TManifold.IsFlat`) | Flat (ambient shortcut) <br> Curved (LogMap/ExpMap round-trip) | Compile-time, JIT-erased | Zero (dead-code elimination) |
-| **Algorithm regime** (hybrid mode) | Weiszfeld (smooth) <br> Subgradient (near singularity) <br> Optimality return (exact coincidence) | Runtime, per-iteration distance check | One branch per iteration after warm-up |
-| **Singularity policy** (within Weiszfeld branch only) | `Regularise(ε)` — soft `1/max(d, ε)` <br> `OptimalityCheck` — return early at coincidence | Runtime, configured per-call | Negligible |
+| Axis                                                  | Values                                                                                            | Stage                                 | Cost                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------- |
+| **Geometry topology** (`TManifold.IsFlat`)            | Flat (ambient shortcut) <br> Curved (LogMap/ExpMap round-trip)                                    | Compile-time, JIT-erased              | Zero (dead-code elimination)           |
+| **Algorithm regime** (hybrid mode)                    | Weiszfeld (smooth) <br> Subgradient (near singularity) <br> Optimality return (exact coincidence) | Runtime, per-iteration distance check | One branch per iteration after warm-up |
+| **Singularity policy** (within Weiszfeld branch only) | `Regularise(ε)` — soft `1/max(d, ε)` <br> `OptimalityCheck` — return early at coincidence         | Runtime, configured per-call          | Negligible                             |
 
 The 2×2 matrix of (geometry × algorithm) gives the four code paths the JIT-specialised solver actually emits:
 
-|  | Flat (`IsFlat = true`, JIT-erased) | Curved (`IsFlat = false`, JIT-erased) |
-|---|---|---|
-| **Weiszfeld** (smooth regime) | Ambient weighted average: `p_new = Σᵢ ŵᵢ · xᵢ` | Tangent round-trip: `LogMap → AddScaled → ExpMap` |
+|                                    | Flat (`IsFlat = true`, JIT-erased)                                       | Curved (`IsFlat = false`, JIT-erased)                                       |
+| ---------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| **Weiszfeld** (smooth regime)      | Ambient weighted average: `p_new = Σᵢ ŵᵢ · xᵢ`                           | Tangent round-trip: `LogMap → AddScaled → ExpMap`                           |
 | **Subgradient** (near singularity) | Ambient unit-vector descent: `p_new = p − η · Σᵢ wᵢ · (p − xᵢ)/‖p − xᵢ‖` | Tangent unit-vector descent: `LogMap → normalise → AddScaled → −η · ExpMap` |
 
-All four cells exist; none subsume each other. Geometry is about *how* to compute an update step; algorithm regime is about *which* update to compute. They don't interact.
+All four cells exist; none subsume each other. Geometry is about _how_ to compute an update step; algorithm regime is about _which_ update to compute. They don't interact.
 
 ### What stays specialised
 
@@ -131,13 +131,13 @@ All four cells exist; none subsume each other. Geometry is about *how* to comput
 
 The current ad-hoc Weiszfeld implementations diverge on real algorithmic choices that must surface as options, not bake in silently:
 
-| Option | Values | Where it shows up today |
-|---|---|---|
-| **Hybrid mode** | `Hybrid` (default) — Weiszfeld with subgradient fallback near singularities <br> `WeiszfeldOnly` — pure Weiszfeld with singularity policy <br> `SubgradientOnly` — pure subgradient | `ProductManifoldMedian` ships both as separate methods; default behaviour today is implicit caller choice |
-| **Singularity policy** (Weiszfeld branch) | `Regularise(ε)` — replace `1/d` with `1/max(d, ε)` <br> `OptimalityCheck` — test the gradient norm at exact coincidence, return early if optimal | `LocationGeometricMedian` uses Regularise; `ProductManifoldMedian.ComputeWeiszfeld` uses OptimalityCheck |
-| **Subgradient threshold** | `double` — distance to nearest data point below which to switch to subgradient under `Hybrid` mode | New; not exposed in current code |
-| **Step-size schedule** (subgradient branch) | `Constant(η)` <br> `Decaying(η₀, schedule = 1/√(k+1))` — paper's default | `ProductManifoldMedian.ComputeSubgradient` hard-codes decaying |
-| **Convergence criterion** | `Absolute(τ)` — `shift < τ` <br> `RelativeToNorm(τ)` — `shift ≤ τ · (1 + ‖p‖)` | `ProductManifoldMedian` is Absolute; `LocationGeometricMedian` is RelativeToNorm |
+| Option                                      | Values                                                                                                                                                                              | Where it shows up today                                                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Hybrid mode**                             | `Hybrid` (default) — Weiszfeld with subgradient fallback near singularities <br> `WeiszfeldOnly` — pure Weiszfeld with singularity policy <br> `SubgradientOnly` — pure subgradient | `ProductManifoldMedian` ships both as separate methods; default behaviour today is implicit caller choice |
+| **Singularity policy** (Weiszfeld branch)   | `Regularise(ε)` — replace `1/d` with `1/max(d, ε)` <br> `OptimalityCheck` — test the gradient norm at exact coincidence, return early if optimal                                    | `LocationGeometricMedian` uses Regularise; `ProductManifoldMedian.ComputeWeiszfeld` uses OptimalityCheck  |
+| **Subgradient threshold**                   | `double` — distance to nearest data point below which to switch to subgradient under `Hybrid` mode                                                                                  | New; not exposed in current code                                                                          |
+| **Step-size schedule** (subgradient branch) | `Constant(η)` <br> `Decaying(η₀, schedule = 1/√(k+1))` — paper's default                                                                                                            | `ProductManifoldMedian.ComputeSubgradient` hard-codes decaying                                            |
+| **Convergence criterion**                   | `Absolute(τ)` — `shift < τ` <br> `RelativeToNorm(τ)` — `shift ≤ τ · (1 + ‖p‖)`                                                                                                      | `ProductManifoldMedian` is Absolute; `LocationGeometricMedian` is RelativeToNorm                          |
 
 All policies are valid. Surface them as options; do not pick one and silently drop the others.
 
@@ -145,12 +145,12 @@ All policies are valid. Surface them as options; do not pick one and silently dr
 
 Today's names tangle four orthogonal axes into ad-hoc compound terms:
 
-| Axis | Values | Today's encoding |
-|---|---|---|
-| Output domain | continuous (ambient point) vs. discrete (data index) | "Medoid" implies discrete by convention |
-| Loss function | L¹ vs. L² vs. robust M | "Mean" / "Median" / "Geometric median" / "Frechet mean" — three vocabularies for two concepts |
-| Geometry | scalar / Euclidean vector / Riemannian | "Delta" prefix, "Location" prefix, no prefix |
-| Estimator role | location vs. scale vs. shape | "Location" prefix; "Sigma" / "Mad" for scale |
+| Axis           | Values                                               | Today's encoding                                                                              |
+| -------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Output domain  | continuous (ambient point) vs. discrete (data index) | "Medoid" implies discrete by convention                                                       |
+| Loss function  | L¹ vs. L² vs. robust M                               | "Mean" / "Median" / "Geometric median" / "Frechet mean" — three vocabularies for two concepts |
+| Geometry       | scalar / Euclidean vector / Riemannian               | "Delta" prefix, "Location" prefix, no prefix                                                  |
+| Estimator role | location vs. scale vs. shape                         | "Location" prefix; "Sigma" / "Mad" for scale                                                  |
 
 Target: let the **manifold parameter** carry the geometry, the **loss parameter** carry the loss, and the **type name** carry only the output-domain and role axes:
 
@@ -160,7 +160,7 @@ Target: let the **manifold parameter** carry the geometry, the **loss parameter*
 - `Scale.Mad` — scalar Median Absolute Deviation. Takes location injected; returns scale. Existing API preserved.
 - `Scale.Scatter` — multivariate analog of MAD. Tangent-space scatter computed at a robust location anchor.
 
-The `Median ↔ Medoid` pair is the natural standard-literature mapping for the continuous-vs-discrete L¹ split (it is exactly the etymology — *medi-oid* = "median-like, but in-sample"). The `Mean` continuous estimator has no widely-used discrete counterpart; if needed, `InSample.Medoid` accepts an `L2Loss` and produces it without new naming.
+The `Median ↔ Medoid` pair is the natural standard-literature mapping for the continuous-vs-discrete L¹ split (it is exactly the etymology — _medi-oid_ = "median-like, but in-sample"). The `Mean` continuous estimator has no widely-used discrete counterpart; if needed, `InSample.Medoid` accepts an `L2Loss` and produces it without new naming.
 
 ## 5. Joint location + scatter API
 
@@ -187,7 +187,7 @@ MedianScatterResult<TPoint> Median.ComputeWithScatter(manifold, data, weights, i
 
 Cost of `WithScatter` over base `Compute`: one extra `O(N · D²)` outer-product accumulation pass after convergence, plus the destination matrix. Zero new heap allocation if the destination is a caller-supplied span.
 
-For the **product manifold** case, the scatter is over the *joint* tangent space at the converged location. This is what the SPC→GMM handoff wants when its features are a product (e.g. spatial × spectral), since the GMM lives in the joint feature space too.
+For the **product manifold** case, the scatter is over the _joint_ tangent space at the converged location. This is what the SPC→GMM handoff wants when its features are a product (e.g. spatial × spectral), since the GMM lives in the joint feature space too.
 
 ## 6. Consistency factor tiers
 
@@ -195,13 +195,13 @@ Calibrating raw scatter into an unbiased estimator of a target distribution's co
 
 Calibration is a property of the **target distribution**, not the data. The natural tool is plain Monte Carlo (sample from the reference distribution, run the same scatter routine, take the ratio); MCMC would only be needed for distributions where direct sampling is unavailable, which doesn't apply to Gaussian or Laplace references.
 
-| Tier | What ships | Use case |
-|---|---|---|
-| 1. Raw (`factor = 1.0`) | nothing extra | SPC→GMM handoff (intentional shrinkage prevents the E-step from swallowing boundary points; the GMM's M-step will inflate Σ as it converges) |
-| 2. User-defined scalar | one `double` parameter | Caller has done their own calibration |
-| 3. User-defined rule | `Func<int, double>` callback | Caller wants dimension-aware lookup or a custom presets table |
-| 4. Built-in MC helper | `Scatter.EstimateGaussianConsistency(int dim, int samples, int seed)` | Library computes the factor once at startup; result caches |
-| 5. Tabulated presets | Ship a table at common D values for `Gaussian`, `Laplace` | After literature review (see references); avoids the MC cost on every startup |
+| Tier                    | What ships                                                            | Use case                                                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Raw (`factor = 1.0`) | nothing extra                                                         | SPC→GMM handoff (intentional shrinkage prevents the E-step from swallowing boundary points; the GMM's M-step will inflate Σ as it converges) |
+| 2. User-defined scalar  | one `double` parameter                                                | Caller has done their own calibration                                                                                                        |
+| 3. User-defined rule    | `Func<int, double>` callback                                          | Caller wants dimension-aware lookup or a custom presets table                                                                                |
+| 4. Built-in MC helper   | `Scatter.EstimateGaussianConsistency(int dim, int samples, int seed)` | Library computes the factor once at startup; result caches                                                                                   |
+| 5. Tabulated presets    | Ship a table at common D values for `Gaussian`, `Laplace`             | After literature review (see references); avoids the MC cost on every startup                                                                |
 
 Worth a literature pass before writing the MC helper: the **spatial sign covariance matrix** (Visuri & Koivunen; Croux & Haesbroeck; Tyler's M-estimator) has closely-related consistency results. The Weiszfeld scatter is not identical to the spatial-sign matrix — the former weights by `1/d`, the latter projects to the unit sphere — but the analytical machinery is the same family. There may be a closed-form or asymptotic expression that obviates the MC step.
 
@@ -213,7 +213,7 @@ Lives under `Optimization/` as a sibling to `linalg/`, not inside it. Hosts:
 
 - `Irls.cs` — the unified solver. Generic over `(TManifold, TLoss, TPoint)` with static-abstract trait dispatch (§3). Implements the three-axis dispatch: geometry shortcut (compile-time), hybrid Weiszfeld+subgradient regime (runtime, default mode), singularity policy (configured). Closed-form short-circuit when `TLoss.IsClosedForm` (L² case = Karcher flow in one iteration). Subgradient is **co-housed inside Irls** rather than a separate solver, because the hybrid mode requires both update schemes in one loop. Pure-Weiszfeld and pure-Subgradient remain accessible via the hybrid mode option.
 - Helper sub-primitives shared across solvers and configured via `IrlsOptions`: `StepSize.Constant`, `StepSize.Decaying(η₀)` (paper's `η₀/√(k+1)`), `Convergence.Absolute(τ)`, `Convergence.RelativeToNorm(τ)`, `SingularityPolicy.Regularise(ε)`, `SingularityPolicy.OptimalityCheck`, `HybridMode.{Hybrid, WeiszfeldOnly, SubgradientOnly}`, `SubgradientThreshold(d)`. These are the §3 knobs made first-class.
-- (Future) `BFGS.cs`, `ConjugateGradient.cs`, `Sgld.cs` — placeholders for downstream needs. SGLD specifically anticipated in [spc-thermo/mhbs.cs](../src/spc-thermo/mhbs.cs)'s frozen design note as a potential outer-loop sampler over coupling/kernel scale; it belongs here, not in Estimators or in spc-thermo.
+- (Future) `BFGS.cs`, `ConjugateGradient.cs`, `Sgld.cs` — placeholders for downstream needs. SGLD specifically anticipated in [src/clustering/spc/thermo/mhbs.cs](../src/clustering/spc/thermo/mhbs.cs)'s frozen design note as a potential outer-loop sampler over coupling/kernel scale; it belongs here, not in Estimators or in spc-thermo.
 
 `KarcherFlow` as its own file vs. an IRLS short-circuit: defaulting to short-circuit. Keeps one entry point; the L² case is conceptually "IRLS that converges in one step." A standalone `KarcherFlow.cs` is defensible only if it accumulates documentation/specialisation that doesn't belong on the IRLS surface.
 
@@ -223,14 +223,14 @@ Lives under `Optimization/` as a sibling to `linalg/`, not inside it. Hosts:
 
 MATLAB's reference design is a **three-tier separation** worth mirroring:
 
-| MATLAB | Role | What it knows about |
-|---|---|---|
-| `randsample(n, k, replace, w)` | Index-only RNG primitive | integers `1..N`, weights, replacement |
-| `datasample(x, k, dim, ...)` | Data-slicing wrapper returning `[y, i]` | how to slice an array using the indices |
-| `bootstrp(B, fn, data)` / `bootci` | Resampling loop | how to call a user function `B` times and aggregate |
-| `jackknife(fn, data)` | Leave-one-out loop | companion to bootstrap; needed for BCa CIs |
+| MATLAB                             | Role                                    | What it knows about                                 |
+| ---------------------------------- | --------------------------------------- | --------------------------------------------------- |
+| `randsample(n, k, replace, w)`     | Index-only RNG primitive                | integers `1..N`, weights, replacement               |
+| `datasample(x, k, dim, ...)`       | Data-slicing wrapper returning `[y, i]` | how to slice an array using the indices             |
+| `bootstrp(B, fn, data)` / `bootci` | Resampling loop                         | how to call a user function `B` times and aggregate |
+| `jackknife(fn, data)`              | Leave-one-out loop                      | companion to bootstrap; needed for BCa CIs          |
 
-`datasample` is a thin layer on `randsample`. The crucial detail: `datasample` returns **both** `y` *and* `i`, so callers can sample indices once and use them to slice multiple parallel arrays consistently. That is the pattern this project should adopt at the index level.
+`datasample` is a thin layer on `randsample`. The crucial detail: `datasample` returns **both** `y` _and_ `i`, so callers can sample indices once and use them to slice multiple parallel arrays consistently. That is the pattern this project should adopt at the index level.
 
 ### C# adaptation
 
@@ -273,7 +273,7 @@ Once `Bootstrap.Run` exists, it pays for itself across the project:
 - CI on scatter eigenvalues (cluster-shape uncertainty)
 - Bagged scatter (variance reduction by averaging Σ_raw across resamples)
 - Stability diagnostics for SPC clusters under resampling
-- Bootstrap hypothesis tests, e.g. for merge-temperature analysis in [spc-thermo/kl.cs](../src/spc-thermo/kl.cs)
+- Bootstrap hypothesis tests, e.g. for merge-temperature analysis in [src/clustering/spc/thermo/kl.cs](../src/clustering/spc/thermo/kl.cs)
 - CI on the SPC delta-bandwidth (see §9)
 
 ### MATLAB primitives already on hand
@@ -286,7 +286,7 @@ The local MATLAB toolchest snapshot at `C:\Users\azrie\PDenv\UserGithub\project-
 
 - They take no manifold, no loss, no weights — scalar summary statistics over a span.
 - Their naming bakes in the application ("delta" = SPC coupling-kernel bandwidth).
-- They are 5–10 lines each, dispatched via the `DeltaEstimator { Mean, Median }` enum in [spc.batch.cs](../src/spc.batch.cs), and consumed by exactly one call site (the auto-δ computation from 1-NN distances).
+- They are 5–10 lines each, dispatched via the `DeltaEstimator { Mean, Median }` enum in [src/clustering/spc/batch.cs](../src/clustering/spc/batch.cs), and consumed by exactly one call site (the auto-δ computation from 1-NN distances).
 
 They move into the SPC graph initialisation as `internal` helpers. The `DeltaEstimator` enum, the auto-δ call site, and the helper functions then sit together as one cohesive unit; the kernel just receives `delta` as a parameter and stays unaware of how it was chosen. The shared `MedianOfSorted` micro-helper question dissolves — `Scale.Mad` keeps its own private 3-line version, SPC keeps its own.
 
@@ -296,12 +296,12 @@ The general principle: **anything whose naming bakes in an application-layer con
 
 The unified estimator framework itself ships as one piece — there's no incremental version of the unification that's coherent. The **extensibility** is tier-shaped:
 
-| Tier | Status | Trigger |
-|---|---|---|
-| 1 (immediate) | Scoped here | Park & You product-manifold Weiszfeld + subgradient with hybrid mode as default, preserving the coupling-via-shared-denominator structure of §3-§4 of the paper; static-abstract trait dispatch on geometry (`IsFlat`) and loss (`IsClosedForm`, `IsSingularAtZero`); L¹ and L² losses; `EuclideanVectorManifold` and variadic `ProductManifold` composed via traits; closed-form L² short-circuit; Medoid; Mad; raw Scatter (Weiszfeld-weighted, joint over product tangent space); Bootstrap with percentile CIs |
-| 2 (next) | Triggered by the SPC→GMM handoff and the robust-Gaussian fit use cases | Huber and Tukey biweight losses; Gaussian/Laplace consistency factors via MC helper; Jackknife + BCa CIs |
-| 3 (open horizon) | Triggered by specific manifold consumers | Bures-Wasserstein manifold for GMM Σ-coupling (Park & You §5 example); Poincaré disk; Fisher-Rao simplex; Riemannian Mahalanobis distance composing the above |
-| 4 (aspirational) | Triggered by SGLD landing per [mhbs.cs](../src/spc-thermo/mhbs.cs) | SGLD outer-loop sampler in `Optimization/`; full robust covariance via MCD or Tyler's M on the tangent space; tabulated consistency-factor presets |
+| Tier             | Status                                                                                                  | Trigger                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 (immediate)    | Scoped here                                                                                             | Park & You product-manifold Weiszfeld + subgradient with hybrid mode as default, preserving the coupling-via-shared-denominator structure of §3-§4 of the paper; static-abstract trait dispatch on geometry (`IsFlat`) and loss (`IsClosedForm`, `IsSingularAtZero`); L¹ and L² losses; `EuclideanVectorManifold` and variadic `ProductManifold` composed via traits; closed-form L² short-circuit; Medoid; Mad; raw Scatter (Weiszfeld-weighted, joint over product tangent space); Bootstrap with percentile CIs |
+| 2 (next)         | Triggered by the SPC→GMM handoff and the robust-Gaussian fit use cases                                  | Huber and Tukey biweight losses; Gaussian/Laplace consistency factors via MC helper; Jackknife + BCa CIs                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 3 (open horizon) | Triggered by specific manifold consumers                                                                | Bures-Wasserstein manifold for GMM Σ-coupling (Park & You §5 example); Poincaré disk; Fisher-Rao simplex; Riemannian Mahalanobis distance composing the above                                                                                                                                                                                                                                                                                                                                                      |
+| 4 (aspirational) | Triggered by SGLD landing per [src/clustering/spc/thermo/mhbs.cs](../src/clustering/spc/thermo/mhbs.cs) | SGLD outer-loop sampler in `Optimization/`; full robust covariance via MCD or Tyler's M on the tangent space; tabulated consistency-factor presets                                                                                                                                                                                                                                                                                                                                                                 |
 
 Tiers 2–4 are additive against the tier-1 surface, not redesigns. Anything in tiers 2–4 that lacks a concrete consumer remains unbuilt; this document captures the seam, not a roadmap.
 
@@ -314,8 +314,9 @@ These were live in v0.1 and have been settled in v0.2:
 - **R1. Trait dispatch via static abstract members.** The unified solver dispatches on `IRiemannianManifold<TPoint>.IsFlat`, `IRobustLoss.IsClosedForm`, `IRobustLoss.IsSingularAtZero` as static-abstract traits. Each concrete `(TManifold, TLoss)` pair JIT-specialises with dead branches eliminated. (See §3 trait-dispatched specialisation.)
 - **R2. Scatter as output channel, not solver concern.** `Optimization.Irls.Solve` exposes converged IRLS weights via an optional `Span<double> finalIrlsWeights` parameter; `Estimators.Scale.Scatter.ComputeFromConvergedIrls` consumes them. The two compose in the `Estimators.Location.Median` façade as `Compute` and `ComputeWithScatter`. (See §5.)
 - **R3. Product manifold via composed trait.** `ProductManifold<TA, TB, ...>.IsFlat => TA.IsFlat && TB.IsFlat && ...` propagates flatness through composition automatically. Variadic generalisation; the existing two-factor case is `ProductManifold` with two type parameters. (See §3 product manifold via composed traits.)
-- **R4. Singularity policy on solver options, not on `IRobustLoss`.** The L¹ singularity is a property of the loss (encoded as `TLoss.IsSingularAtZero`), but the *handling* (regularise vs. optimality-check) is a per-call solver choice. Settled.
+- **R4. Singularity policy on solver options, not on `IRobustLoss`.** The L¹ singularity is a property of the loss (encoded as `TLoss.IsSingularAtZero`), but the _handling_ (regularise vs. optimality-check) is a per-call solver choice. Settled.
 - **R5. Hybrid Weiszfeld + subgradient is the default mode.** Per Park & You §4.1.2 / Beck & Sabach (2015). Pure-Weiszfeld and pure-Subgradient remain accessible. Settled. (See §3 hybrid Weiszfeld + subgradient.)
+- **R6. Metrics vs. manifolds placement rule.** A distance function belongs in `manifolds/` — as a proper `struct` implementing `IRiemannianManifold` — if and only if a finite-dimensional `LogMap` and `ExpMap` exist for it. Functions without these (Euclidean, Manhattan, Wasserstein-1, Canberra, Jaccard, and similar extrinsic distances) stay in `metrics/` permanently. Under this rule, `Poincaré`, `FisherRaoHalfPlane`, and `FisherRaoSimplex` are candidates for promotion to `manifolds/` — all three have closed-form geodesic flows. `JensenShannon` and `Cosine` (angular / spherical) are geodesics in principle but their full manifold implementations (information-geometry simplex and S^{d-1}) are deferred to tier 3. `Wasserstein-1` is not a Riemannian geodesic; `Wasserstein-2` is, but only tractable as a struct for parametric families (Bures metric) — no such implementation exists here yet.
 
 ### Still open
 
@@ -333,7 +334,7 @@ These remain undecided and affect public API shape:
 ## 12. References and inputs
 
 - **Geometric median on product manifolds (load-bearing)** — Park & You, "Geometric Medians on Product Manifolds," 2026. arXiv:2505.18844. Cleaned local copy at [.discussion/2505.18844v3.cleaned.md](../.discussion/2505.18844v3.cleaned.md) (or wherever the converted PDF lives); cited inline in [src/estimators/ManifoldMedian.cs](../src/estimators/ManifoldMedian.cs). Proves existence/uniqueness on Hadamard products, 50% breakdown, Lipschitz stability, and supplies the subgradient + product-aware Weiszfeld algorithms with hybrid recommendation in §4.1.2. **This paper is the design anchor; everything in §3 reduces to its formulation.**
-- **Hybrid Weiszfeld+subgradient scheme** — Beck, A. & Sabach, S. (2015). "Weiszfeld's Method: Old and New Results." *Journal of Optimization Theory and Applications* 164(1): 1–40. Referenced by Park & You §4.1.2 as the foundation for the hybrid mode adopted as default in §3.
+- **Hybrid Weiszfeld+subgradient scheme** — Beck, A. & Sabach, S. (2015). "Weiszfeld's Method: Old and New Results." _Journal of Optimization Theory and Applications_ 164(1): 1–40. Referenced by Park & You §4.1.2 as the foundation for the hybrid mode adopted as default in §3.
 - **Robust scatter on the tangent space** — Discussion thread at [.discussion/semi-sup-preview/gemini-manifold-medmad.md](../.discussion/semi-sup-preview/gemini-manifold-medmad.md) developing the inverse-distance-weighted scatter as the multivariate MAD analog and the SPC→GMM handoff use case. The Park & You §5 Bures-Wasserstein example is the natural manifold for the joint mean+covariance product.
 - **Trait-dispatched manifold solver** — Discussion threads at [.discussion/gemini-geometric-median-general.md](../.discussion/gemini-geometric-median-general.md) (initial sketch — flawed, see thread for corrections) and [.discussion/gemini-manifold-median-v2.md](../.discussion/gemini-manifold-median-v2.md) (static-abstract `IsFlat` trait pattern adopted in §3). Note: both threads independently dropped the product-manifold structure and the singularity-handling correctness; v0.2 of this doc reinstates them as load-bearing.
 - **Spatial sign covariance literature** — Visuri & Koivunen (2000); Croux & Haesbroeck (1999); Tyler's M-estimator (1987). Reference for the dimension-dependent consistency factor in §6.

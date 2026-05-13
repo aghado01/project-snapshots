@@ -2,8 +2,8 @@
 
 > **Status:** DRAFT v0.2 — adds bundling principle, sidecar pattern, three-layer type model, supervisor architecture, observable cost discipline, concrete GMM codec inventory.
 > **Date:** 2026-05-04
-> **Supersedes:** the resume-only framing baked into `src/spc.checkpoint.cs`.
-> **Purpose:** define the target shape of the state management / checkpoint engine that will support SPC pause/resume, offline replay, supervisor-driven cumulative analysis, and SPC → GMM handoff. This document is the canonical target; the gap between this document and current code is *debt*, not API.
+> **Supersedes:** the resume-only framing baked into `src/clustering/spc/checkpoint.cs`.
+> **Purpose:** define the target shape of the state management / checkpoint engine that will support SPC pause/resume, offline replay, supervisor-driven cumulative analysis, and SPC → GMM handoff. This document is the canonical target; the gap between this document and current code is _debt_, not API.
 > **Sibling document:** [spc-maturity.md](./spc-maturity.md) covers the parallel SPC bespoke→scientific-package renovation.
 
 ---
@@ -137,6 +137,7 @@ A codec's payload type may bundle multiple per-point columns into a single tuple
 - They are consumed together (a reader needing one usually needs the others).
 
 Example bundles:
+
 - Per-epoch SPC state at temperature T: `(spin_label, cluster_size_of_label, local_coupling_sum)` — all derived from the same SW sweep.
 - Per-iteration GMM state per point: `(hard_label, log_responsibility_argmax, mahalanobis_to_assigned)` — all derived from the same E-step.
 - Dataset features + per-feature flags: `(x[D], is_outlier_flag)` — set together at dataset generation.
@@ -152,15 +153,16 @@ Sidecars are for data that **shares an index space** with a primary artifact but
 - Codec ID is distinct (e.g. `dataset/ground-truth-labels/v1` is a sidecar to `dataset/points/v1`).
 
 Examples:
+
 - Ground truth labels sidecar to the points artifact (different lifecycle: written at dataset generation, immutable).
 - Fuzzy memberships sidecar to the points artifact (different shape: N × K vs. N × D; only some workflows need it).
 - Predicted labels sidecar to the points artifact (different write cadence: produced at clustering completion).
 
 Bundling collapses co-temporal columns into one artifact. Sidecars connect artifacts whose lifecycles differ but whose row indices align. Both patterns are first-class.
 
-### 7.3 What does *not* go in either
+### 7.3 What does _not_ go in either
 
-Per-point trajectory indices — "for point i, the labels were [3, 3, 5, 5, 5, 1] across the recorded epochs" — are *derived* from a stream by transposition. They live under `derived/` if cached, recomputable from the primary stream. Do not denormalize into the primary stream.
+Per-point trajectory indices — "for point i, the labels were [3, 3, 5, 5, 5, 1] across the recorded epochs" — are _derived_ from a stream by transposition. They live under `derived/` if cached, recomputable from the primary stream. Do not denormalize into the primary stream.
 
 Per-point timestamps that duplicate the artifact's `(epoch, sequence)` coordinates are a category error: epoch is implicit in which artifact you opened.
 
@@ -186,17 +188,18 @@ Tile merge timing (write-time vs. read-time) is a per-codec choice.
 
 Persistent artifacts decouple three distinct type concepts:
 
-| Layer | What it describes | Where it lives |
-|---|---|---|
-| **Logical type** | The mathematical object — "a coupling weight is a non-negative real" | Codec definition |
-| **Storage type** | The on-disk representation chosen at write time — `float32`, `float64`, `int8`, etc. | Per-artifact header |
-| **Compute type** | The in-memory representation used by consumers during active computation | Selected at read time via `ReadContext` |
+| Layer            | What it describes                                                                    | Where it lives                          |
+| ---------------- | ------------------------------------------------------------------------------------ | --------------------------------------- |
+| **Logical type** | The mathematical object — "a coupling weight is a non-negative real"                 | Codec definition                        |
+| **Storage type** | The on-disk representation chosen at write time — `float32`, `float64`, `int8`, etc. | Per-artifact header                     |
+| **Compute type** | The in-memory representation used by consumers during active computation             | Selected at read time via `ReadContext` |
 
-The codec declares the logical type and the *minimum* precision required for correctness. The `RunConfig` selects the storage type; the consumer selects the compute type. The codec handles casts internally.
+The codec declares the logical type and the _minimum_ precision required for correctness. The `RunConfig` selects the storage type; the consumer selects the compute type. The codec handles casts internally.
 
 This is what allows the engine to accommodate unforeseeable value ranges without committing to a dtype at design time. For numerical artifacts (CSR graph weights, spin observations, GMM parameters), the storage dtype is recorded as a fact in the header; consumers cast at materialization.
 
 Defaults for SPC/GMM artifacts (proposed; codec authors can override):
+
 - Spin labels: `int8` storage (Q ≤ 20 fits trivially), `int32` compute.
 - Coupling weights: `float64` storage default; `float32` permissible when range probe (see §11.2) confirms safety.
 - Responsibility matrix: `float32` storage, `float64` compute.
@@ -233,12 +236,14 @@ interface IDeltaCodec<T> : IArtifactCodec<T> {
 ### 11.2 Contexts
 
 `WriteContext` carries policy decisions resolved by the engine before the codec is invoked:
+
 - Selected storage dtype.
 - Compression algorithm + level.
 - Anchor / delta encoding choice.
 - Stream and epoch coordinates.
 
 `ReadContext` carries consumer preferences:
+
 - Compute dtype (defaults to header's storage dtype; consumer may upcast).
 - Whether to materialize fully or stream.
 
@@ -246,7 +251,7 @@ The codec never makes policy decisions. The engine resolves policy from `RunConf
 
 ### 11.3 Optional ProbeRange diagnostic
 
-For value-range-sensitive payloads (e.g., coupling weights with unknown dynamic range), a codec may emit a *companion stats artifact* before its primary write — `{codec}/range-stats/v1` — containing `{min, max, mean, p1, p99, recommended_storage_dtype}`. The graph stage can then write the primary CSR-graph artifact with `storage_dtype` set from the recommendation. This is a diagnostic codec pattern, not a method on the main codec interface — it stays surface-area-cheap.
+For value-range-sensitive payloads (e.g., coupling weights with unknown dynamic range), a codec may emit a _companion stats artifact_ before its primary write — `{codec}/range-stats/v1` — containing `{min, max, mean, p1, p99, recommended_storage_dtype}`. The graph stage can then write the primary CSR-graph artifact with `storage_dtype` set from the recommendation. This is a diagnostic codec pattern, not a method on the main codec interface — it stays surface-area-cheap.
 
 ### 11.4 Compression boundary
 
@@ -349,13 +354,14 @@ The runtime layer drives stages through the engine. It is built on top of the en
 
 ## 19. Architectural layering
 
-| Layer | Knowledge | Project location |
-|---|---|---|
-| **Engine** | General; runs, stages, streams, codecs, compression, IO. No SPC or GMM types. | `projects/StateEngine/` |
-| **Codecs** | Domain. How to encode/decode specific payloads. | `spc/csr-graph/v1`, `spc/spin-observation/v3`, `thermo/chi-trace/v1`, `gmm/parameter-snapshot/v1`, etc. |
-| **Runtime** | Workflow. Drives stages through the engine. Implements the SPC + GMM control flow. | `projects/SpcCore/`, `projects/GaussianMixture/`, future `projects/GmmCore/` |
+| Layer       | Knowledge                                                                          | Project location                                                                                        |
+| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Engine**  | General; runs, stages, streams, codecs, compression, IO. No SPC or GMM types.      | `projects/StateEngine/`                                                                                 |
+| **Codecs**  | Domain. How to encode/decode specific payloads.                                    | `spc/csr-graph/v1`, `spc/spin-observation/v3`, `thermo/chi-trace/v1`, `gmm/parameter-snapshot/v1`, etc. |
+| **Runtime** | Workflow. Drives stages through the engine. Implements the SPC + GMM control flow. | `projects/SpcCore/`, `projects/GaussianMixture/`, future `projects/GmmCore/`                            |
 
 Implications for project structure (post-engine):
+
 - `projects/StateEngine/` — pure engine. No SPC or GMM types.
 - `projects/SpcCodecs/` (or hosted in `SpcCore`) — SPC-specific codecs.
 - `projects/SpcCore/` — runtime, references `StateEngine` + `SpcCodecs`.
@@ -368,7 +374,7 @@ Stage boundaries are checkpoint boundaries. **Within a stage**, the runtime is f
 
 ### 20.1 Concrete: graph initialization → SW hot path
 
-Today (in-memory coupling, see [src/spc.batch.cs:149](../src/spc.batch.cs:149)):
+Today (in-memory coupling, see [src/clustering/spc/batch.cs](../src/clustering/spc/batch.cs)):
 
 ```csharp
 Edge[] edges = BuildGraphFromMetric(request, out int n);
@@ -399,105 +405,113 @@ In the single-process case the CSR graph is served from the engine's in-memory c
 
 ### 20.3 What stays in memory
 
-The handoff discipline applies at *stage boundaries*, not within stages. The SW sweep loop does not write per-sweep artifacts — it writes per-epoch artifacts where epoch granularity is configurable. The serialization budget is bounded by epoch granularity, not sweep granularity.
+The handoff discipline applies at _stage boundaries_, not within stages. The SW sweep loop does not write per-sweep artifacts — it writes per-epoch artifacts where epoch granularity is configurable. The serialization budget is bounded by epoch granularity, not sweep granularity.
 
 ## 21. Supervisor execution and termination
 
 Three supervision modes collapse to a single mechanism with two knobs (epoch granularity, supervisor coupling):
 
-| Mode | epoch_sweeps | Supervisor | Termination authority |
-|---|---|---|---|
-| **Eager** (classical online) | 1 (per sweep) | none — kernel reads its own running accumulators | SW kernel: sweep budget or in-loop convergence test |
-| **Supervised** (epoch-paced) | configurable | in-process or out-of-process at epoch rendezvous | Supervisor: writes termination signal as artifact |
-| **Headless** (offline) | full run as one epoch | async / out-of-process post hoc | SW kernel: sweep budget; analysis post-mortem |
+| Mode                         | epoch_sweeps          | Supervisor                                       | Termination authority                               |
+| ---------------------------- | --------------------- | ------------------------------------------------ | --------------------------------------------------- |
+| **Eager** (classical online) | 1 (per sweep)         | none — kernel reads its own running accumulators | SW kernel: sweep budget or in-loop convergence test |
+| **Supervised** (epoch-paced) | configurable          | in-process or out-of-process at epoch rendezvous | Supervisor: writes termination signal as artifact   |
+| **Headless** (offline)       | full run as one epoch | async / out-of-process post hoc                  | SW kernel: sweep budget; analysis post-mortem       |
 
-Termination signals are themselves artifacts (`supervisor/termination-signal/v1`), written to a known stream. The SW driver polls for them at every epoch rendezvous before advancing the next epoch. This means the supervisor can be in-process *or* out-of-process with the same contract: in-process publishes via the engine and gets cache-hit pickup; out-of-process publishes via disk write and is picked up by the next polling cycle.
+Termination signals are themselves artifacts (`supervisor/termination-signal/v1`), written to a known stream. The SW driver polls for them at every epoch rendezvous before advancing the next epoch. This means the supervisor can be in-process _or_ out-of-process with the same contract: in-process publishes via the engine and gets cache-hit pickup; out-of-process publishes via disk write and is picked up by the next polling cycle.
 
 ## 22. Observable cost discipline
 
-What gets accumulated *inside* the simulation kernel vs. derived *outside* is a cost question, not an architectural one. Rule of thumb:
+What gets accumulated _inside_ the simulation kernel vs. derived _outside_ is a cost question, not an architectural one. Rule of thumb:
 
 - **O(N) per sweep observables belong inside the kernel.** Running mean, FK susceptibility, cluster-size histogram. These are essentially free; the simulation is already O(edges) per sweep, and a single pass over `int[N]` adds no asymptotic cost. Discarding them just to recompute from spin observations later wastes the work.
 - **O(N²) or O(N·K) state belongs as supervisor passes.** Equilibrium correlation matrix `<δ(sᵢ, sⱼ)>`, fan-out KL, full responsibility matrix queries. Cramming these into the hot path bloats it for marginal benefit; deriving them from persisted observations is the right factoring.
 
-This is an axis distinct from supervision mode. The kernel always runs the cheap accumulators regardless of whether anyone acts on them in real time. Whether running values are *acted on* is the supervisor's question (eager: kernel itself acts; supervised: external supervisor acts; headless: post-mortem analysis acts).
+This is an axis distinct from supervision mode. The kernel always runs the cheap accumulators regardless of whether anyone acts on them in real time. Whether running values are _acted on_ is the supervisor's question (eager: kernel itself acts; supervised: external supervisor acts; headless: post-mortem analysis acts).
 
 ## 23. Canonical end-to-end lifecycle
 
 A complete SPC + GMM run progresses through the following stages. Stages that do not run leave their directories absent. The lifecycle is the same skeleton for SPC-only, GMM-only, and combined runs.
 
 ### 23.1 `Init` — run initialization
+
 - **Inputs:** request DTO, environment context, optional parent run reference.
 - **Artifacts:** run manifest, opened artifact log.
 
 ### 23.2 `Graph` — proximity graph construction
+
 - **Inputs:** dataset features (or precomputed distance field).
 - **Operations:** pairwise distance, proximity rule, coupling kernel, connectivity diagnostics.
 - **Artifacts:** CSR graph (singleton snapshot), graph diagnostics, optional coupling-weight range stats.
 
 ### 23.3 `SpcSim` — Swendsen-Wang temperature sweeps
+
 - **Inputs:** CSR graph artifact ID, temperature list, sweep budget per T, epoch granularity.
 - **Operations:** per temperature, SW sweeps grouped into epochs. Parallelism across temperatures by default; tiles within a temperature where divisible. See [spc-maturity.md](./spc-maturity.md) for the runtime renovation that makes the SW kernel publish proper bond-cluster statistics.
 - **Artifacts** (per epoch, per T, per tile): spin observation (anchor or delta), per-epoch summary, optional bond-cluster size sample, per-T final-state bundle on completion.
 
 ### 23.4 `Thermo` — thermodynamic and information analysis
+
 - **Inputs:** spin observation streams, bond-cluster statistics streams, per-epoch summaries.
 - **Operations:** χ trends (FK estimator), K stability, fan-out KL, centroid drift, Fisher info, BFS shells, peak detection — full-history or windowed.
 - **Artifacts:** evidence traces (one stream per signal), cross-temperature snapshots at completion of T blocks.
 
 ### 23.5 `Handoff` — readiness and handoff state
+
 - **Inputs:** evidence traces.
 - **Operations:** Phase 1 — manual review and selection. Phase 2 — automated readiness scoring.
 - **Artifacts:** readiness snapshots (append-only), handoff state (selected initial conditions for GMM, with lineage links to source SPC artifacts).
 
 ### 23.6 `GmmInit` — GMM parameter lift
+
 - **Inputs:** handoff state.
 - **Operations:** translate SPC outputs into GMM means, covariances, weights via `GaussianMixtureModel.InitializeWithParameters`. May dispatch manifold-aware estimators (Karcher mean, geometric median) for warm-start.
 - **Artifacts:** initial GMM parameter snapshot.
 
 ### 23.7 `GmmSim` — EM iterations
+
 - **Inputs:** initial parameters, dataset.
 - **Operations:** EM iterations as epochs. Tile-divisible at the data-point level for E-step responsibilities and M-step partial sums.
 - **Artifacts** (per iteration, optionally per tile): parameter snapshot, responsibility frame, iteration summary.
 
 ### 23.8 `Done` — run completion
+
 - Final state finalized, run manifest updated to `Complete`, optional run digest emitted.
 - A run can complete at any earlier stage.
 
 ## 24. Per-stage codec inventory
 
-GMM codec shapes are now concrete (the `GaussianMixtureModel` runtime is built; see `src/gmm/`). SPC codec shapes assume the SPC maturity renovation; see [spc-maturity.md](./spc-maturity.md).
+GMM codec shapes are now concrete (the `GaussianMixtureModel` runtime is built; see `src/clustering/gmm/`). SPC codec shapes assume the SPC maturity renovation; see [spc-maturity.md](./spc-maturity.md).
 
-| Stage | Codec ID | Shape / payload | Notes |
-|---|---|---|---|
-| Init | `run/manifest/v1` | JSON | Singleton at run root |
-| Graph | `spc/csr-graph/v1` | binary, dense-array layout | Singleton; storage dtype set from coupling-stats |
-| Graph | `spc/coupling-stats/v1` | small JSON | `{min, max, mean, p1, p99, recommended_dtype}` |
-| Graph | `spc/graph-diagnostics/v1` | JSON | Connectivity warnings |
-| SpcSim | `spc/spin-observation/v3` | binary delta-encoded `int8[N]` per epoch per T per tile | Hot path; anchored delta chain. **Note:** these are SW per-sweep colors, not equilibrium cluster assignments — see `spc/equilibrium-clusters/v1` for the latter |
-| SpcSim | `spc/temperature-summary/v1` | JSON, small struct | `{cluster_count, sweep_count, equilibration_phase, running_chi, is_complete, current_spins_artifact_id}` per epoch per T |
-| SpcSim | `spc/bond-cluster-sample/v1` | LPAC pipe-delimited, `int[]` | Optional; per-epoch sample of bond-cluster sizes for percolation visualization and FK variance estimation |
-| SpcSim | `spc/temperature-final-state/v1` | binary, `(int label, int arrival_sweep, int cluster_size)[N]` per T | Bundled per-point payload at T completion; for replay/visualization. Header records settling criterion (`last-spin-flip` / `stability-window-K=5` / `structural`) |
-| Thermo | `thermo/chi-trace/v1` | LPAC pipe-delimited, `(epoch, value)` per T | FK susceptibility derived from bond-cluster sizes |
-| Thermo | `thermo/cluster-count-trace/v1` | LPAC pipe-delimited, `(epoch, K)` per T | K stability tracking |
-| Thermo | `thermo/cooccurrence-matrix/v1` | binary, sparse symmetric `float[N, N]` per T | Equilibrium `<δ(sᵢ, sⱼ)>` averaged over sampling sweeps; source-of-truth for "the clusters at T" |
-| Thermo | `thermo/equilibrium-clusters/v1` | binary, `int[N]` per T | Connected components of co-occurrence matrix above threshold; the "real" cluster assignments |
-| Thermo | `thermo/merge-tree/v1` | binary `float[N-1, 3]` matching MATLAB `Z` layout | SPC dendrogram derived from cooccurrence matrix via single-linkage; same on-wire shape as `dataset/ground-truth-hierarchy/v1` so validation tooling is shared. See [spc-maturity.md](./spc-maturity.md) §17.1 |
-| Thermo | `thermo/cluster-profile/v1` | binary, `(cluster_id, birth_T, merge_T, lifetime, stability_score, is_stable_leaf, data_index_count)[]` plus index-list sidecar | Per-cluster identity tracked across the temperature sweep; primary input for `SpcAnalysisReport.ClusterProfiles` and the SPC→GMM handoff factory. See [spc-maturity.md](./spc-maturity.md) §17.2 |
-| Thermo | `thermo/cross-temperature-snapshot/v1` | JSON, structured | Peak indices, criticality scores |
-| Handoff | `handoff/readiness/v1` | JSON, append | Per-evaluation snapshot |
-| Handoff | `handoff/state/v1` | JSON | Singleton per handoff; selected initial conditions |
-| Supervisor | `supervisor/termination-signal/v1` | JSON, small | Termination directive emitted by supervisor at epoch rendezvous |
-| GmmInit | `gmm/initial-parameters/v1` | binary, K × `{Weight (float64), Mean[D] (float64), Covariance[D,D] (float64)}` | Singleton; do not persist `Σ⁻¹` or `LogNormalizationFactor` — rehydrate calls `UpdateCache()` |
-| GmmSim | `gmm/parameter-snapshot/v1` | same as initial-parameters; anchor + delta candidate (delta = changed components) | Per EM iteration |
-| GmmSim | `gmm/responsibility-frame/v1` | binary dense-array `float32[N, K]`, `float64` compute | Tile by row range (E-step is row-parallel by construction) |
-| GmmSim | `gmm/iteration-summary/v1` | JSON, append | `{IterationIndex, FinalLogLikelihood, IsConverged, EffectiveCounts[K]}` |
-| GmmSim | `gmm/sample-output/v1` | binary; `(samples[N,D], componentIndices[N])` | Synthetic mixture emission; pairs with dataset sidecar pattern |
-| GmmSim | `gmm/locked-assignments/v1` | binary, `int[N]` | Sidecar to points artifact; semi-supervised input |
-| Dataset | `dataset/points/v1` | binary dense-array `float64[N, D]` | Primary feature matrix |
-| Dataset | `dataset/ground-truth-labels/v1` | binary `int32[N]` | Sidecar to points (synthetic data only) |
-| Dataset | `dataset/ground-truth-hierarchy/v1` | binary `float[N-1, 3]` matching MATLAB `Z` layout | Sidecar; for Blatt hierarchy and similar |
-| Dataset | `dataset/manifest/v1` | JSON | Per-dataset metadata, generation params |
+| Stage      | Codec ID                               | Shape / payload                                                                                                                 | Notes                                                                                                                                                                                                         |
+| ---------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Init       | `run/manifest/v1`                      | JSON                                                                                                                            | Singleton at run root                                                                                                                                                                                         |
+| Graph      | `spc/csr-graph/v1`                     | binary, dense-array layout                                                                                                      | Singleton; storage dtype set from coupling-stats                                                                                                                                                              |
+| Graph      | `spc/coupling-stats/v1`                | small JSON                                                                                                                      | `{min, max, mean, p1, p99, recommended_dtype}`                                                                                                                                                                |
+| Graph      | `spc/graph-diagnostics/v1`             | JSON                                                                                                                            | Connectivity warnings                                                                                                                                                                                         |
+| SpcSim     | `spc/spin-observation/v3`              | binary delta-encoded `int8[N]` per epoch per T per tile                                                                         | Hot path; anchored delta chain. **Note:** these are SW per-sweep colors, not equilibrium cluster assignments — see `spc/equilibrium-clusters/v1` for the latter                                               |
+| SpcSim     | `spc/temperature-summary/v1`           | JSON, small struct                                                                                                              | `{cluster_count, sweep_count, equilibration_phase, running_chi, is_complete, current_spins_artifact_id}` per epoch per T                                                                                      |
+| SpcSim     | `spc/bond-cluster-sample/v1`           | LPAC pipe-delimited, `int[]`                                                                                                    | Optional; per-epoch sample of bond-cluster sizes for percolation visualization and FK variance estimation                                                                                                     |
+| SpcSim     | `spc/temperature-final-state/v1`       | binary, `(int label, int arrival_sweep, int cluster_size)[N]` per T                                                             | Bundled per-point payload at T completion; for replay/visualization. Header records settling criterion (`last-spin-flip` / `stability-window-K=5` / `structural`)                                             |
+| Thermo     | `thermo/chi-trace/v1`                  | LPAC pipe-delimited, `(epoch, value)` per T                                                                                     | FK susceptibility derived from bond-cluster sizes                                                                                                                                                             |
+| Thermo     | `thermo/cluster-count-trace/v1`        | LPAC pipe-delimited, `(epoch, K)` per T                                                                                         | K stability tracking                                                                                                                                                                                          |
+| Thermo     | `thermo/cooccurrence-matrix/v1`        | binary, sparse symmetric `float[N, N]` per T                                                                                    | Equilibrium `<δ(sᵢ, sⱼ)>` averaged over sampling sweeps; source-of-truth for "the clusters at T"                                                                                                              |
+| Thermo     | `thermo/equilibrium-clusters/v1`       | binary, `int[N]` per T                                                                                                          | Connected components of co-occurrence matrix above threshold; the "real" cluster assignments                                                                                                                  |
+| Thermo     | `thermo/merge-tree/v1`                 | binary `float[N-1, 3]` matching MATLAB `Z` layout                                                                               | SPC dendrogram derived from cooccurrence matrix via single-linkage; same on-wire shape as `dataset/ground-truth-hierarchy/v1` so validation tooling is shared. See [spc-maturity.md](./spc-maturity.md) §17.1 |
+| Thermo     | `thermo/cluster-profile/v1`            | binary, `(cluster_id, birth_T, merge_T, lifetime, stability_score, is_stable_leaf, data_index_count)[]` plus index-list sidecar | Per-cluster identity tracked across the temperature sweep; primary input for `SpcAnalysisReport.ClusterProfiles` and the SPC→GMM handoff factory. See [spc-maturity.md](./spc-maturity.md) §17.2              |
+| Thermo     | `thermo/cross-temperature-snapshot/v1` | JSON, structured                                                                                                                | Peak indices, criticality scores                                                                                                                                                                              |
+| Handoff    | `handoff/readiness/v1`                 | JSON, append                                                                                                                    | Per-evaluation snapshot                                                                                                                                                                                       |
+| Handoff    | `handoff/state/v1`                     | JSON                                                                                                                            | Singleton per handoff; selected initial conditions                                                                                                                                                            |
+| Supervisor | `supervisor/termination-signal/v1`     | JSON, small                                                                                                                     | Termination directive emitted by supervisor at epoch rendezvous                                                                                                                                               |
+| GmmInit    | `gmm/initial-parameters/v1`            | binary, K × `{Weight (float64), Mean[D] (float64), Covariance[D,D] (float64)}`                                                  | Singleton; do not persist `Σ⁻¹` or `LogNormalizationFactor` — rehydrate calls `UpdateCache()`                                                                                                                 |
+| GmmSim     | `gmm/parameter-snapshot/v1`            | same as initial-parameters; anchor + delta candidate (delta = changed components)                                               | Per EM iteration                                                                                                                                                                                              |
+| GmmSim     | `gmm/responsibility-frame/v1`          | binary dense-array `float32[N, K]`, `float64` compute                                                                           | Tile by row range (E-step is row-parallel by construction)                                                                                                                                                    |
+| GmmSim     | `gmm/iteration-summary/v1`             | JSON, append                                                                                                                    | `{IterationIndex, FinalLogLikelihood, IsConverged, EffectiveCounts[K]}`                                                                                                                                       |
+| GmmSim     | `gmm/sample-output/v1`                 | binary; `(samples[N,D], componentIndices[N])`                                                                                   | Synthetic mixture emission; pairs with dataset sidecar pattern                                                                                                                                                |
+| GmmSim     | `gmm/locked-assignments/v1`            | binary, `int[N]`                                                                                                                | Sidecar to points artifact; semi-supervised input                                                                                                                                                             |
+| Dataset    | `dataset/points/v1`                    | binary dense-array `float64[N, D]`                                                                                              | Primary feature matrix                                                                                                                                                                                        |
+| Dataset    | `dataset/ground-truth-labels/v1`       | binary `int32[N]`                                                                                                               | Sidecar to points (synthetic data only)                                                                                                                                                                       |
+| Dataset    | `dataset/ground-truth-hierarchy/v1`    | binary `float[N-1, 3]` matching MATLAB `Z` layout                                                                               | Sidecar; for Blatt hierarchy and similar                                                                                                                                                                      |
+| Dataset    | `dataset/manifest/v1`                  | JSON                                                                                                                            | Per-dataset metadata, generation params                                                                                                                                                                       |
 
 ## 25. Configuration and modes
 
@@ -514,13 +528,13 @@ GMM codec shapes are now concrete (the `GaussianMixtureModel` runtime is built; 
 
 Named modes resolve coherent presets. Examples (illustrative; final list TBD):
 
-| Mode | Intent | Persistence shape |
-|---|---|---|
-| `ResumeOnly` | Cheap pause/resume | Latest pointer only; no replay |
-| `Replay` | Offline scrub through history | Anchored delta streams + summaries; no supervisor |
-| `Supervised` | Live supervisor watching | Replay + per-epoch evidence traces |
-| `EvidenceAccumulation` | Manual GMM handoff workflow | Supervised + archival compression + extended retention |
-| `ResearchTrace` | Maximum visibility | Everything, including tile-level intermediate artifacts |
+| Mode                   | Intent                        | Persistence shape                                       |
+| ---------------------- | ----------------------------- | ------------------------------------------------------- |
+| `ResumeOnly`           | Cheap pause/resume            | Latest pointer only; no replay                          |
+| `Replay`               | Offline scrub through history | Anchored delta streams + summaries; no supervisor       |
+| `Supervised`           | Live supervisor watching      | Replay + per-epoch evidence traces                      |
+| `EvidenceAccumulation` | Manual GMM handoff workflow   | Supervised + archival compression + extended retention  |
+| `ResearchTrace`        | Maximum visibility            | Everything, including tile-level intermediate artifacts |
 
 ## 26. On-disk layout (proposal)
 
@@ -566,6 +580,7 @@ The path layout is one valid encoding consistent with the artifact log. **The lo
 ## 27. Open design questions
 
 ### 27.1 Engine internals
+
 - **Anchor cadence policy** — time-based, epoch-count-based, change-volume-based, or hybrid?
 - **Tile merge timing** — write-time vs. read-time, possibly per-codec choice.
 - **Cross-run reference format** — opaque hash-based reference, structured URI, or both?
@@ -574,15 +589,18 @@ The path layout is one valid encoding consistent with the artifact log. **The lo
 - **Run-level event API** — does the engine expose a structured event stream for in-process consumers, or do consumers tail the log?
 
 **Resolved (no longer open):**
-- *Operation log encoding* → length-prefixed ndjson (see decisions log §32).
+
+- _Operation log encoding_ → length-prefixed ndjson (see decisions log §32).
 
 ### 27.2 Runtime / workflow
+
 - **Stage failure semantics** — partial failure: artifacts logged as `Abandoned`, rolled back, or left for forensic inspection?
 - **Stage dependency declaration** — should stages declare their input artifact requirements so the engine can validate before execution, or is that a runtime-layer concern?
 - **Concurrent stages** — can `Thermo` run concurrently with `SpcSim`, reading observation artifacts as they're published? Implies a publish-event API on the writer side.
 - **Cross-T epoch synchronization** — independent (current) vs. synchronized (round-robin); see [spc-maturity.md](./spc-maturity.md) §7.
 
 ### 27.3 SPC and GMM specifics
+
 - **GMM E-step responsibility tile granularity** → per-row-range (E-step is row-parallel by construction). Settled.
 - **GMM responsibility persistence shape** → full N×K via `gmm/responsibility-frame/v1`. Sufficient-statistics compression is a future-codec, not v1.
 - **GMM label stability convention** — sort components by descending weight at end of `Fit` so cross-run label vectors are comparable without alignment. To be enforced inside `GaussianMixtureModel.Fit` itself.
@@ -615,7 +633,7 @@ The SPC maturity work (FK susceptibility, bond-cluster accumulation, model API r
 
 Items in current code that are debt from the prior "resume only" framing. Listed here so they are not mistaken for design choices and so future work has a clear deletion list:
 
-- `SpcCheckpoint`, `SpcRunStateManifest`, `SpcStateArtifact`, `SpcCheckpointPersistenceOptions`, `SpcTemperatureState`, `SpcTemperatureSpinFrame` in [src/spc.checkpoint.cs](../src/spc.checkpoint.cs) — superseded by engine primitives + SPC codecs.
+- `SpcCheckpoint`, `SpcRunStateManifest`, `SpcStateArtifact`, `SpcCheckpointPersistenceOptions`, `SpcTemperatureState`, `SpcTemperatureSpinFrame` in [src/clustering/spc/checkpoint.cs](../src/clustering/spc/checkpoint.cs) — superseded by engine primitives + SPC codecs.
 - Temperature summary `.ckpt` files overwriting per epoch (loses per-epoch summary history).
 - Manifest fully rewritten on every artifact insert (no `SpcRunStateWriter`).
 - No artifact integrity metadata (content hash, uncompressed length, record count).
@@ -634,8 +652,8 @@ Items in current code that are debt from the prior "resume only" framing. Listed
 
 Distinct category from architecture debt — these are wrong-formula or wrong-semantics issues to fix:
 
-- **FK susceptibility computed from spin colors instead of bond-cluster sizes.** [spc-thermo/chi.cs:41-59](../src/spc-thermo/chi.cs:41) buckets by spin label, but with Q=20 and many more bond-clusters in the disordered phase, multiple distinct bond-clusters get conflated into one color bucket. Cauchy-Schwarz makes this a positive bias. The canonical FK estimator is `χ = (1/N) · Σ_c |c|²` over actual bond-clusters from the union-find pass, averaged over equilibrium sweeps. Fix bundled into the SPC maturity scope.
-- **`BuildHistograms` and other spin-label-bucketed code** ([src/spc.thermo.cs:40](../src/spc.thermo.cs:40)) inherits the same conflation; needs the same shift to bond-cluster basis.
+- **FK susceptibility computed from spin colors instead of bond-cluster sizes.** [src/clustering/spc/thermo/chi.cs](../src/clustering/spc/thermo/chi.cs) buckets by spin label, but with Q=20 and many more bond-clusters in the disordered phase, multiple distinct bond-clusters get conflated into one color bucket. Cauchy-Schwarz makes this a positive bias. The canonical FK estimator is `χ = (1/N) · Σ_c |c|²` over actual bond-clusters from the union-find pass, averaged over equilibrium sweeps. Fix bundled into the SPC maturity scope.
+- **`BuildHistograms` and other spin-label-bucketed code** ([src/clustering/spc/thermo/thermo.cs](../src/clustering/spc/thermo/thermo.cs)) inherits the same conflation; needs the same shift to bond-cluster basis.
 - **`SpcBatchResult.FinalSpins[T]`** is an instantaneous snapshot of per-sweep colors, not equilibrium cluster assignments. Currently treated as "the clusters at T" by downstream code; only valid below T_c. The proper "clusters at T" come from thresholding the equilibrium co-occurrence matrix and taking connected components — see `thermo/equilibrium-clusters/v1` in the codec inventory.
 - **RNG state not resumable.** `System.Random` doesn't expose its state; resume creates a fresh RNG, so the stochastic trajectory diverges from uninterrupted-run reproducibility. Fix via swap to xoshiro/PCG with `GetState()`/`SetState()`. Bundled into SPC maturity scope.
 
@@ -660,6 +678,7 @@ Entries are dated and brief. Resolves prior open questions; do not modify after 
 ## 32.
 
 ### 2026-05-04
+
 - **Operation log encoding:** length-prefixed newline-delimited JSON. Human-inspectable, append-friendly, parser-cheap. Covers manifest log only; payload artifacts use codec-specific encodings (binary, LPAC pipe-delimited, dense-array, JSON).
 - **Three-layer type model:** logical / storage / compute split is canonical. Storage dtype recorded in artifact header as a fact; compute dtype selected at read time via `ReadContext`.
 - **Encoding header field:** `Encoding` enum on per-artifact header — `binary-custom`, `json`, `ndjson`, `lpac-pipe`, `dense-array`. Readers route on this; no sniffing.

@@ -1,5 +1,95 @@
 # Changelog
 
+## 2026-05-12 — VizApi: graph-builder controls, paired metric fixtures, GMM/UI cleanup
+
+### Added
+
+- **`projects/VizApi/Program.cs` + `src/viz-core/schema_catalog.cs` — paired generator fixtures for metric storytelling**: `HyperbolicBlobs`, `Simplex`, and `GaussianManifold` are now first-class VizApi generators with schema entries, request fields, and build/adapt dispatch. This gives the viewer native fixtures for `Poincare`, `FisherRaoSimplex`, and `FisherRaoHalfPlane` instead of forcing those geodesics onto mismatched crescent/Mobius scenes.
+- **`projects/VizApi/Program.cs` + `src/viz-core/viewer.html` — graph-builder control surface exposed end-to-end**: `EnsureConnected` (shown in the UI as **MST Repair**), `Kernel`, `Bandwidth`, `GmmMode`, and `Poincare` metric dispatch are now part of the regen contract and viewer controls. The right panel can now drive the full graph-builder story: metric -> topology rule -> bandwidth estimation -> coupling kernel.
+- **`src/viz-core/scene_renderer.cs` + `src/viz-core/serializer.cs` — scene titles preserved in render payloads**: `SceneDescriptor.Title` is now carried through `ScenePackage` JSON so generator-specific headers such as `Hyperbolic Blobs`, `Simplex (probability vectors)`, and `Gaussian Manifold (mu, log sigma)` survive serialization and appear in the viewer.
+
+### Changed
+
+- **`src/viz-core/viewer.html` — GMM controls and visibility model redesigned**: the old single ellipsoid toggle was replaced by a mode dropdown (`Oracle` / `EM`) plus independent `Surface` and `Wireframe` toggles. Both default off, wireframe-only is now a valid state, and Gaussian colors are coordinated with the fitted cluster rather than falling back to muddy crimson/additive blends.
+- **`projects/VizApi/Program.cs` + `src/viz-core/adapter.cs` — legacy K=1 Gaussian layers removed from the base synthetic adapter**: the adapter no longer emits always-on analytic/best-fit Gaussian overlays. VizApi now emits exactly one user-selected Gaussian layer per regen, keyed by `GmmMode`, with oracle components inheriting the source cluster index and EM components mapped back to dominant GT cluster labels for consistent coloring.
+- **`src/viz-core/viewer.html` — graph diagnostics upgraded from a terse spec string to an explanatory stats strip**: the legend/header now reports metric, neighborhood rule, kernel, bandwidth, MST repair, edge count, component count, and coupling-weight range. `Scalar` was renamed to **Color by**, and the legend now includes a cluster palette key plus an edges key explaining cluster-colored wires and crimson false bridges.
+- **`src/viz-core/viewer.html` — regen wiring and flow-field rendering repaired**: graph controls (`rule`, `k`, `metric`, `epsilon`, `kernel`, `bandwidth`, `seed`, `MST Repair`, `GmmMode`) now trigger regeneration; rehydrated local-flow meshes are re-added to the scene; and instanced cone coloring now uses per-instance colors so the orientation-propagated local PCA field remains visible after regen.
+- **`src/viz-core/serializer.cs` — Gaussian rendering now tolerates non-3D covariance matrices**: 2D fitted covariances are embedded into the top-left of a 3x3 render covariance with a small epsilon pad on the remaining diagonal, so 2D fixtures such as `GaussianManifold` and `HyperbolicBlobs` render as thin discs instead of throwing on a hard-coded 3x3 Cholesky read.
+- **`projects/DistanceMetrics/DistanceMetrics.csproj` + `projects/VizApi/Program.cs` — geodesic metrics fully wired for the viewer**: `Poincare` is now compiled into `DistanceMetrics`, dispatched by VizApi, and selectable in the viewer alongside `FisherRaoSimplex` and `FisherRaoHalfPlane`.
+- **`projects/ProximityGraphs/ProximityGraphs.csproj` + `src/graphs/GraphBuilder.cs` + `src/synthetic/MobiusEllipsoid.cs` — build hygiene fixes for the viz stack**: restored compile includes for proximity-selection / MST-repair sources, fixed the nullable scratch-buffer warning in `GraphBuilder`, and corrected the stale XML doc reference in `MobiusEllipsoid`.
+
+### Removed
+
+- **`src/viz-core/adapter.cs` — automatic legacy Gaussian overlays**: the unconditional `GT Ellipsoids (analytic)` and `Best-Fit Gaussian` layers are no longer injected into every adapted synthetic scene; Gaussian overlays are now an explicit VizApi/viewer concern.
+
+## 2026-05-12 — SPC: legacy implementation archived to .depr, rewrite baseline cleared
+
+### Changed
+
+- **`project.toml`** — updated the SPC inventory to reflect the post-eviction state: `src/clustering/spc/` is now an intentionally empty rewrite surface, `SpcCore` / `SpcThermo` / `SpcSynthetic` are marked `rewrite-pending` with no active source files yet, `.depr/` is recorded as a top-level path, and `.depr/spc/` is now explicitly tracked as a deprecated reference-only source root.
+
+### Removed
+
+- **Active legacy SPC source ownership from `project.toml`** — the inventory no longer claims that `src/clustering/spc/batch.cs`, `checkpoint.cs`, `graph.cs`, `potts.cs`, `synthetic.cs`, or `src/clustering/spc/thermo/` are current active sources, because the old implementation has been moved wholesale to `.depr/spc/`.
+
+## 2026-05-12 — Docs: root project inventory, SPC renovation note, stale-reference cleanup
+
+### Added
+
+- **`project.toml`** — new root-level project inventory file. Declares the current project list, source roots, maintenance contract, and authority boundaries. Records that `src/clustering/spc/` is under renovation as SPC maturity work extracts primitives into domain projects and rewrites SPC as a consumer of primitives plus Potts/runtime and thermo residuals.
+
+### Changed
+
+- **`docs/project-primer.md`** — removed the embedded path/project inventory table and replaced it with a pointer to `project.toml` as the current inventory authority. Added explicit routine-maintenance guidance for keeping the inventory file up to date and a note that the current `src/clustering/spc/` tree is not the authority on target SPC architecture during the renovation.
+- **`docs/spc-maturity.md`** — added a current-tree renovation note and updated stale path references from pre-reorg locations (`src/gmm/`, `src/spc.batch.cs`, `src/spc-thermo/`, `src/spc.thermo.cs`) to the current `src/clustering/gmm/` and `src/clustering/spc/` layout.
+- **`docs/state-engine-design.md`** — updated stale references to the current checkpoint, batch, GMM, and thermo source paths after the SPC/GMM reorganization.
+- **`docs/numerics-primitives.md`** — updated references to SPC thermo and batch sources to the current `src/clustering/spc/` layout.
+- **`docs/visualization-engine.md`** — replaced the stale `IDistanceMetric` registry wording with the current `VizMetric` + VizApi dispatch description, and updated the Wing-2 flow note to reflect the current single-graph `GraphBuilder.Build` / `CsrGraph` pipeline rather than the old second-pass neighbor-selection description.
+
+## 2026-05-12 — Hashish: IMeasure, IDivergence dispatch surfaces
+
+### Added
+
+- **`src/hashish/measure.cs`** — `IMeasure<T>` plus zero-state readonly-struct adapters over existing symmetric primitives: `LevenshteinMeasure : IMeasure<string?>`, `CosineVectorMeasure : IMeasure<double[]>`, `JaccardMeasure<T> : IMeasure<IEnumerable<T>>`, and `DiceMeasure<T> : IMeasure<IEnumerable<T>>`. The intent is typed caller-side dispatch without string-keyed metric switches: distance/similarity pairs stay attached to the same domain surface while reusing the existing static implementations.
+- **`src/hashish/divergence.cs`** — `IDivergence<T>` for asymmetric pairwise comparisons with `Forward(a, b)` and a default `Symmetric(a, b) = Forward(a, b) + Forward(b, a)`. `KlDivergence : IDivergence<ReadOnlyMemory<double>>` wraps `KLDivergence` using `ReadOnlyMemory<double>` rather than spans so arrays, pooled buffers, and slices can be passed through the dispatch surface without copying.
+
+### Changed
+
+- **`src/hashish/levenshtein.cs`** — replaced tuple assignment on `ReadOnlySpan<char>` with an explicit temporary-variable swap when placing the shorter input on the column axis. This preserves the two-row DP behavior but avoids the ref-struct tuple restriction that broke the `Hashish` project build.
+
+## 2026-05-12 — Hashish: KLDivergence, Histogram
+
+### Added
+
+- **`src/hashish/kl.cs`** — `KLDivergence`. `Forward(ReadOnlySpan<double> p, ReadOnlySpan<double> q, double eps)`: KL(P‖Q) in nats; explicit length guard (span walkstep from `p.Length`); eps floor on q for near-zero values. `Symmetric`: Jeffreys divergence KL(P‖Q) + KL(Q‖P). Lifted and span-ified from `SpcCore.SpcAnalysis`; thermo-specific wrappers (`ComputeFisherInT`, sweep analysis) remain in thermo. Caller note in header: pre-smooth sparse text distributions via `Histogram.Normalize(alpha > 0)` rather than relying on eps.
+- **`src/hashish/histogram.cs`** — `Histogram`. `Normalize(ReadOnlySpan<int> counts, Span<double> output, double alpha)`: counts → PMF with Lidstone add-α smoothing; formula `(count[i] + α) / (Σ counts + α·|support|)`; explicit length guard; degenerate all-zero + α=0 case returns zero vector. `BuildUnigram(ReadOnlySpan<string> tokens, FrozenDictionary<string,int> vocab, Span<double> output, double alpha)`: text-native path, tokens not in vocab silently skipped, `ArrayPool<int>` for count scratch. Both methods have allocating convenience overloads. `FrozenDictionary` contract matches `CooccurrenceModel.TokenIndex` and `TfIdfModel` vocab maps directly.
+
+---
+
+## 2026-05-12 — Hashish: Levenshtein, SorensenDice; metrics doc annotations
+
+### Added
+
+- **`src/hashish/levenshtein.cs`** — `Levenshtein`. `Distance(ReadOnlySpan<char>, ReadOnlySpan<char>)` / `Distance(string?, string?)`: two-row DP with common prefix/suffix trimming, `stackalloc` rows up to 256 columns, `ArrayPool<int>` beyond. Shorter string placed on column axis to minimize row width. `Similarity(...)`: normalized to [0,1] as `1 − distance / max(lenA, lenB)`; returns 1.0 for both-empty.
+- **`src/hashish/jaccard.cs` — `DiceSimilarity` / `DiceDistance` / `WordShingleDiceSimilarity`**: Sørensen–Dice coefficient `2|A∩B| / (|A|+|B|)` added to `JaccardContainment`. Reuses existing private `IntersectionCount` and `ToSet`. Mirrors the Jaccard/Containment/OverlapCoefficient API shape including a `WordShingler`-backed convenience overload.
+
+### Changed
+
+- **`src/metrics/*.cs` — length-validation doc annotations**: All 12 vector metrics annotated with a one-line `/// <summary>` explaining their length-mismatch behavior. Three categories: natural array-indexing throw (Euclidean, Manhattan, Minkowski, Canberra, Jaccard, Wasserstein), unhelpful span-bounds throw (Cosine via `TensorPrimitives`, JensenShannon via `q.AsSpan`), and explicit guard with rationale (Poincaré, Mahalanobis, FisherRaoHalfPlane, FisherRaoSimplex).
+- **`src/metrics/FisherRaoSimplex.cs`** — added `p.Length != q.Length` guard; `TensorPrimitives.Multiply` slices both spans from `p.Length` so a shorter `q` previously threw inside `TensorPrimitives` with no call-site context.
+
+---
+
+## 2026-05-12 — Validation guards: TF-IDF dense matrix, TfIdfSearch, MstAugmented doc fix
+
+### Changed
+
+- **`src/hashish/tfidf.cs` — `TransformAll` overloads**: Added `Array.MaxLength` guard before dense matrix allocation in both the `IReadOnlyList<string>` and `TokenizedCorpus` overloads. Throws `InvalidOperationException` with a message directing callers to `TransformSparse` when `n × Dimension > Array.MaxLength`.
+- **`src/hashish/tfidf.search.cs` — `ScoreQuery` / `NearestDocuments`**: Added `denseRows.Length % dim != 0` guard before dimension inference in both methods. Throws `ArgumentException` with the mismatched lengths if the flat row buffer is not a clean multiple of `model.Dimension`.
+- **`src/graphs/construction/MstAugmented.cs` — `EnsureConnected` doc comment**: Corrected algorithm description from "O(N² log N) via Kruskal's" to the actual Borůvka-phases implementation — each phase is one O(N²) sweep finding the cheapest outgoing edge per component; typical MutualKnn graphs finish in 1–2 phases; exits immediately if already connected.
+
+---
+
 ## 2026-05-12 — Hashish: TF-IDF, Co-occurrence, CosineVectors, WelfordMahal
 
 ### Added

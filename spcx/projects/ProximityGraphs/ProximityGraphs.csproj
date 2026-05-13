@@ -13,6 +13,8 @@
     <Compile Include="..\..\src\graphs\Edge.cs"            Link="Edge.cs" />
     <Compile Include="..\..\src\graphs\GraphSelection.cs"  Link="GraphSelection.cs" />
     <Compile Include="..\..\src\graphs\GraphBuilder.cs"    Link="GraphBuilder.cs" />
+    <Compile Include="..\..\src\graphs\MstAugmented.cs"    Link="MstAugmented.cs" />
+    <Compile Include="..\..\src\graphs\proximity\*.cs"    Link="proximity\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\graphs\construction\*.cs"  Link="construction\%(Filename)%(Extension)" />
     <Compile Include="..\..\src\graphs\tda\*.cs"           Link="tda\%(Filename)%(Extension)" />
   </ItemGroup>
