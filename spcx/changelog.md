@@ -1,5 +1,186 @@
 # Changelog
 
+## 2026-05-15 — Rename alignment, estimator/GMM rebind, and namespace-drift containment
+
+### Fixed
+
+- **`src/maths/linalg/ICA.cs`** — fixed the actual `double[][]` vs `double[,]` break in symmetric decorrelation by converting the jagged `WWt` scratch matrix to rectangular form before calling `Eigen.DecomposeSymmetric(...)`. `Maths.LinAlg` now builds on the real code path instead of relying on the earlier partial cleanup.
+- **`projects/Graphs.Proximity/Graphs.Proximity.csproj`** — restored the graph-root compile surface (`GraphSelection.cs`, `GraphBuilder.cs`, `Bandwidth.cs`) so the assembly once again owns `NeighborSelection`, `GraphBuilder`, `ProximityRule`, `KernelType`, and bandwidth estimation instead of exposing only the proximity partials.
+- **`src/graphs/proximity/*.cs`** — re-imported `Graphs` in the proximity partials so `NeighborSelection` and the graph-construction types resolve from the same assembly boundary they are compiled into.
+- **`projects/Estimators/Estimators.csproj`** — estimator project identity is now `Estimators` end-to-end (`RootNamespace`, `AssemblyName`, recursive `src/estimators/**` compile glob). Added explicit `Maths.Geometry` and `Maths.Optimization` project references so the manifold estimator slice compiles from its real dependency surface.
+- **`src/clustering/gmm/*.cs`** — the GMM runtime surface was rebound from `namespace StatisticalEstimators` to `namespace Estimators` so the clustering layer matches the current estimator project identity instead of dragging a stale namespace alias forward.
+- **`src/viz-core/gmm_adapter.cs`** — updated to import `Estimators` so the visualisation adapter tracks the renamed GMM surface.
+- **`projects/Clustering.GMM/Cluster.GMM.csproj`** — stale `Maths.LinAlg` project filename fixed (`Maths.LinAlg.csproj`) and explicit reference to `projects/Estimators/Estimators.csproj` added.
+- **`projects/VizCore/VizCore.csproj`**, **`projects/TDA.Mapper/TDA.Mapper.csproj`**, **`projects/Clustering.SPC/Clustering.SPC.csproj`** — stale `Math.*` project paths corrected to the live `Maths.*` project filenames.
+- **`projects/Maths.Optimization/Maths.Optimization.csproj`** — fixed the lingering stale reference to `..\Maths.Geometry\Math.Geometry.csproj` and added `System.Numerics.Tensors` so `Irls` compiles against the current `Maths.Geometry` and tensor surface.
+- **`projects/tests/VizCoreSmoke/Program.cs`**, **`tests/tda/mapper/HyperbolicHierarchyTest.cs`**, **`src/tda/mapper/*.cs`**, and **`projects/VizApi/*`** — cleaned stale `ProximityGraphs`, `SyntheticDatasets`, old `MobiusPlacement` members, and old graph-root assumptions so downstream consumers match the current `Graphs.*`, `Synthetic`, and `Estimators` surfaces.
+- **`project.toml`** — inventory now reflects the live repo state: `Maths.*` project paths, `Estimators` as the estimator assembly identity, updated `src/estimators` ownership notes, and an explicit `EmbeddingEtl` placeholder marked as not expected to build.
+- **`ps.core.pwshspc.sln`** — solution entries now point at the real `projects\Maths.*\Maths.*.csproj` files and the estimator project is listed as `Estimators` instead of `StatisticalEstimators`.
+
+### Written
+
+| File                                      | Lines | What                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/graphs/primitives/CsrGraph.cs`       |   +91 | `InducedSubgraph(bool[], out int[] newToOld, out int[] oldToNew)` method on the struct                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/clustering/spc/AdaptiveScheduler.cs` |   332 | 3-stage adaptive scheduler against our `PottsModel` API. Coarse log-spaced probe -> dense band with `(T x Replicas x Rounds)` flat-task `Parallel.For` -> final `FkAndEdges` equilibrium. `chi_FK` as the susceptibility (reads `RunningSumSqClusterSizes` directly). Early-stop on coarse-stability >= 0.95. Deterministic per-task seeds derived from `HashCode.Combine(BaseSeed, T_quantized, round, replica)` when `BaseSeed` is set; OS-entropy otherwise. |
+| `src/tda/mapper/Clusterers/MapperSpc.cs`  |   124 | `MapperSpcClusterer : IGraphClusterer`. Builds mask from preimage, calls `InducedSubgraph`, runs `AdaptiveScheduler`, applies `BlattCanonicalCut`, translates labels back to preimage-index order. Exposes `LastDiagnostics` for inspection.                                                                                                                                                                                                                    |
+
+### Validated
+
+- **Focused builds passed** — `projects/Maths.Optimization/Maths.Optimization.csproj`, `projects/Estimators/Estimators.csproj`, `projects/Clustering.GMM/Cluster.GMM.csproj`, `projects/VizCore/VizCore.csproj`, and `projects/Clustering.SPC/Clustering.SPC.csproj` all built successfully after the rename-alignment pass.
+- **All `projects/tests` builds now pass** — `VizCoreSmoke`, `Spc.BlattSmoke`, `Spc.BlattAnalyze`, `Spc.HyperbolicSmoke`, and `TDA.Mapper.Tests` all build successfully after restoring the `Graphs.Proximity` assembly surface and cleaning the remaining stale imports.
+
+### Lessons learned
+
+- **Namespace drift is structural, not cosmetic** — when project names, assembly names, source namespaces, and consumer `using` directives stop moving together, the compiler reports downstream fallout (`type not found`, `member missing`, bad project refs) instead of the original identity split.
+- **Inventory drift compounds code drift** — stale entries in `project.toml` and the solution file made the repo look partially renamed even after source files had moved. That delayed diagnosis because the metadata still described a world that no longer existed.
+
+### Guidance
+
+- **Rename atomically across all four identity layers** — namespace, assembly/root namespace, csproj path/file name, and solution/inventory metadata should change in one pass.
+- **Treat partial types as a namespace hazard zone** — never move or rename one partial file in isolation; verify all siblings still declare the same namespace immediately after the change.
+- **Validate one owning project and one consumer** — build only the library that owns the renamed surface and the nearest downstream consumer right after the edit. That catches both missing references and stale imports before the drift spreads.
+- **Reserve `Maths.*` as the canonical prefix** — do not reintroduce `Math.*`; the collision risk with framework naming is real and it already produced avoidable ambiguity.
+
+### Follow-up note
+
+- **ETL transition note** — `projects/EmbeddingEtl` remains a non-building placeholder, but a live ETL-oriented source surface now exists under `src/ETL`. Any future VizApi/VizCore ETL-facing pointers should be reviewed against `src/ETL` first rather than assuming the old `EmbeddingEtl` project boundary still describes where those contracts and transforms live.
+
+## 2026-05-15 — GraphRepair namespace postmortem
+
+### Postmortem
+
+- **`src/graphs/GraphRepair.cs`** — the original failure was not a missing `Graphs.Primitives` project reference. The real issue was a partial-class namespace split: `GraphRepair.cs` declared `ProximityGraph` in `namespace Graphs` while the other proximity partials (`SelectKnn`, `SelectMutualKnn`, `SelectEpsilonBall`) live in `namespace Graphs.Proximity`.
+- **Type split symptom** — that created two distinct types, `Graphs.ProximityGraph` and `Graphs.Proximity.ProximityGraph`, which led to misleading compiler errors that first surfaced as unresolved `UnionFind` and then, after namespace edits, as missing `SelectKnn`/`SelectMutualKnn`/`SelectEpsilonBall` members on `ProximityGraph`.
+- **Takeaway** — for `partial` types, namespace identity is part of the type identity. When one file drifts namespaces, the compiler does not merge the declarations; it silently creates separate types and the resulting errors point at downstream missing members rather than the structural split itself.
+
+## 2026-05-15 — Reference fixes: VizCore, Graphs.Proximity, ICA, Maths.Geometry
+
+### Fixed
+
+- **`VizCore.csproj`** — removed dead `LinearAlgebra\LinearAlgebra.csproj` and `GaussianMixture\GaussianMixture.csproj` references; added `Math.LinAlg\LinAlg.csproj`, `Clustering.GMM\Cluster.GMM.csproj`, and `StatisticalEstimators\StatisticalEstimators.csproj`.
+- **`src/viz-core/adapter.cs`** — `using static SyntheticDatasets.SyntheticData` → `using static Synthetic.SyntheticData` (missed by the earlier bulk rename since it was a `using static` form).
+- **`Maths.Geometry/Math.Geometry.csproj`** — added `<PackageReference Include="System.Numerics.Tensors" Version="10.0.0" />` (same fix as `Graphs.Distance`; required by `EuclideanVectorManifold`).
+- **`Maths.LinAlg/ICA.cs`** — fixed pre-existing source bugs: added `OrthogonalRandomInit` (Box-Muller + Gram-Schmidt), replaced `double[,] sqrtInv` with `double[][]` in `SymmetricDecorrelation`, implemented `MatrixTranspose` and `MatrixMultiply` stubs.
+- **`Graphs.Proximity.csproj`** — `<ProjectReference>` to `Graphs.Primitives` confirmed present (no change needed; `UnionFind` reachable).
+- **`VizCoreSmoke.csproj`** — stale `ProximityGraphs\ProximityGraphs.csproj` → `Graphs.Proximity\Graphs.Proximity.csproj`.
+
+## 2026-05-15 — Math→Maths namespace rename; src/math→src/maths
+
+### Renamed (breaking)
+
+- **`Math.*` → `Maths.*`** across all namespaces and assemblies — `Math.X` collides with the BCL `System.Math` alias in certain contexts; renamed to `Maths.X` globally.
+  - `Math.LinAlg` → `Maths.LinAlg`
+  - `Math.Geometry` → `Maths.Geometry`
+  - `Math.Optimization` → `Maths.Optimization`
+  - `Math.Rng` → `Maths.Rng`
+
+### Changed
+
+- **`src/math/` → `src/maths/`** — source folder renamed to match new namespace prefix.
+- **23 source files updated** — `namespace Math.*` and `using Math.*` directives replaced throughout `src/maths/`, `src/estimators/`, `src/clustering/`, `src/tda/`, `src/viz-core/`.
+- **4 csproj files updated** — `RootNamespace`, `AssemblyName`, and `<Compile>` glob paths (`src\math\` → `src\maths\`) in `Math.LinAlg/LinAlg.csproj`, `Math.Geometry/Math.Geometry.csproj`, `Math.Optimization/Math.Optimization.csproj`, `Math.Rng/Math.Rng.csproj`. Project folder names and SLN entries unchanged.
+- **`project.toml`** — `assembly`, `sources`, `owner_projects`, and notes updated from `Math.*` → `Maths.*` and `src/math/` → `src/maths/`.
+
+## 2026-05-15 — Math umbrella, distance taxonomy, smoke reorganization, Synthetic rename
+
+### Renamed (breaking)
+
+- **`SyntheticDatasets` → `Synthetic`** — namespace (`namespace Synthetic`), assembly, csproj, and all ProjectReferences updated. Callers: `VizCore`, `VizApi`, `Spc.BlattSmoke`, `Spc.HyperbolicSmoke`, `src/viz-core/adapter.cs`.
+- **`Linalg` project** — path corrected to `projects/Math.LinAlg` (assembly was already `Math.LinAlg` from prior session; path entry in project.toml was stale).
+
+### Added
+
+- **`projects/Math.Geometry/Math.Geometry.csproj`** — new project; `namespace Math.Geometry`; covers `src/math/geometry/` (IRiemannianManifold, EuclideanVectorManifold, RiemannianProductManifold). No upstream project references.
+- **`projects/Math.Optimization/Math.Optimization.csproj`** — new project; `namespace Math.Optimization`; covers `src/math/optimization/` (IRLS, IRobustLoss, loss options). References `Math.Geometry`.
+- **`projects/Math.Rng/Math.Rng.csproj`** — new project; `namespace Math.Rng`; covers `src/math/rng/` (Xoshiro256++).
+- **`projects/Graphs.Distance/Graphs.Distance.csproj`** — new project; covers `src/graphs/distance/**` with `Graphs.Distance.*` sub-namespaces organized by geometry family: `euclidean/`, `geodesic/`, `probability/`, `sets/`, `other/`.
+- **`projects/tests/` subfolder** — smoke tests and test harnesses consolidated under `projects/tests/`: `VizCoreSmoke`, `Spc.BlattSmoke`, `Spc.HyperbolicSmoke`, `Spc.BlattAnalyze`, `TDA.Mapper` (formerly `TDA.Mapper.Tests`).
+
+### Changed
+
+- **`src/math/` umbrella** — `src/linalg`, `src/manifolds`, `src/losses`, `src/optimization` all relocated under `src/math/{linalg,geometry,optimization,rng}`. Corresponding `Math.*` namespaces applied to all source files.
+- **`src/graphs/distance/`** — formerly `src/metrics/`. All 14 metric files assigned `Graphs.Distance.{Euclidean,Geodesic,Probability,Sets,Other}` namespaces.
+- **`Spc.HyperbolicSmoke`** — removed stale single-file `<Compile>` hack for `Poincare.cs` (from deleted `src/manifolds/geodesics/`); replaced with `<ProjectReference>` to `Graphs.Distance`.
+- **`VizCoreSmoke`** — fixed stale `ProximityGraphs\ProximityGraphs.csproj` reference → `Graphs.Proximity\Graphs.Proximity.csproj`.
+- **`StatisticalEstimators.csproj`** — removed three stale compile globs (manifolds, losses, optimization); added `Math.Geometry` ProjectReference.
+- **`Clustering.GMM`, `TDA.Mapper`** — updated `Linalg\Linalg.csproj` → `Math.LinAlg\LinAlg.csproj`.
+- **`src/estimators/*.cs`** (5 files) — `using Manifolds;` → `using Math.Geometry;`.
+- **`src/clustering/gmm/GaussianComponent.cs`** — `using Linalg;` → `using Math.LinAlg;`; `using DistanceMetrics;` → `using Graphs.Distance.Probability;`.
+- **`projects/VizApi/DistanceFactory.cs`** — `using DistanceMetrics;` → `using Graphs.Distance.Euclidean; using Graphs.Distance.Geodesic;`.
+- **`project.toml`** — all new/moved projects and source_roots updated; `src/manifolds`, `src/losses`, `src/optimization` source_roots marked `deprecated-moved`; smoke/test projects paths updated to `projects/tests/`.
+- **`ps.core.pwshspc.sln`** — removed: `Linalg`, `DistanceMetrics`, old smoke paths. Added: `Math.LinAlg`, `Math.Geometry`, `Math.Optimization`, `Math.Rng`, `Graphs.Distance`, `projects/tests/*`.
+
+## 2026-05-15 - SPC reborn
+
+✓ Xoshiro256PlusPlus with raw save/restore
+✓ csproj wiring (Graphs.Primitives + Clustering.SPC, sln + toml updated)
+✓ PottsModelStepResult DTO + GetCheckpoint/Restore on PottsModel
+✓ PottsModelStepResultIO binary format (SPCX v1)
+✓ TaskSpec + BuildTaskList + SpcScheduler.Run (flat-list dump scheduler)
+✓ Fixture driver: Blatt Euclidean → CsrGraph → schedule → run
+✓ Offline analysis (one-off script reading the checkpoint directory → χ(T))
+
+## 2026-05-15 — Project restructure: TDA.Mapper promotion, namespace renames, synthetic/metrics taxonomy
+
+### Renamed (breaking)
+
+- **`CouplingKernels` → `Graphs.Coupling`** — namespace, assembly, and project renamed across all files (`src/graphs/coupling/*.cs`, `src/graphs/GraphBuilder.cs`).
+- **`LinearAlgebra` → `Linalg`** — namespace, assembly, and project renamed.
+- **`ProximityGraphs` → `Graphs.Proximity`** — namespace, assembly, and project renamed. Sources scoped to `src/graphs/*.cs` and `src/graphs/proximity/`; primitives and coupling subfolders now separately owned.
+- **`GaussianMixture` → `Clustering.GMM`** — namespace, assembly, and project renamed.
+- **`Graphs.TDA.Mapper` → `TDA.Mapper`** — namespace renamed across all mapper files (Mapper.cs, GraphMapper.cs, Cover/, Filters/, Clusterers/) and test files.
+
+### Added
+
+- **`projects/Clustering.Init/`** — new project covering `src/clustering/init/`; KMeans++ and related seeding strategies.
+- **`projects/TDA.Mapper/`** — new project covering `src/tda/mapper/**`. References Graphs.Primitives, Graphs.Proximity, Linalg, Clustering.Init, Clustering.GMM.
+- **`projects/TDA.Mapper.Tests/`** — new test project covering `tests/tda/mapper/`.
+- **`src/tda/mapper/`** — promoted from `src/dev/graphs/tda/mapper/`. Superset of the old `src/graphs/tda/mapper/` with `IGraphFilter`, `IGraphClusterer` interfaces and graph `Build(CsrGraph,...)` overload.
+
+### Changed
+
+- **`ps.core.pwshspc.sln`** — removed ProximityGraphs, CouplingKernels, LinearAlgebra, GaussianMixture; added Graphs.Proximity, Graphs.Coupling, Linalg, Clustering.GMM, Clustering.Init, TDA.Mapper, TDA.Mapper.Tests.
+- **`src/synthetic/` reorganized** — generators split into `euclidean/` (flat R^d: blobs, anisotropic Gaussians, sparse supports, Blatt hierarchies, TwoMoons, MobiusEllipsoid, CrescentEllipsoid) and `manifolds/` (curved/information-geometric: HyperbolicHierarchy, HyperbolicBlobs, GaussianManifold, Simplex). AnisotropicGaussian, SpatialBlobs, SparseSupports moved from root into `euclidean/`.
+- **`projects/SyntheticDatasets/SyntheticDatasets.csproj`** — compile glob updated from `src/synthetic/*.cs` to `src/synthetic/**/*.cs` to cover subfolders.
+- **`project.toml`** — all renamed/new projects updated; `src/metrics`, `src/manifolds`, `src/synthetic` source_root entries updated with scoping notes.
+
+### Notes
+
+- `src/metrics/` covers flat-space metrics only (Lp family, Mahalanobis, Jaccard, Hamming, NCD). Geodesic metrics for curved spaces live in `src/manifolds/geodesics/` (Poincare, FisherRaoHalfPlane, FisherRaoSimplex, Cosine, Wasserstein1).
+- JensenShannon is a proper metric (sqrt form) and is a candidate for relocation from `src/metrics/` to `src/manifolds/geodesics/`.
+- Hamming has no matching generator in `src/synthetic/`; candidates would need bit-packed categorical data.
+- `src/dev/` and old `src/graphs/tda/` folders not yet cleaned up.
+
+## 2026-05-14 — House cleaning part 1
+
+### Changes
+
+- Several breaking changes moving files around in `src/` to consolidate graph initialization code, codify contracts, streamline related ETL, synthetic data and graph initialization workflows, and fix various correctness problems and baroque code patterns. Separating manifold-related workflows with special adapter and contract needs from nominal euclidean workflows where less machinery is needed. Aiming for a coherent architecture without unnecessary complexity.
+- moved items related to convergent graph construction inputs such as metric adapters,
+- started grouping synthetic data generators into manifold and euclidean buckets
+
+- Also added new `src/dev` bucket for WIP partial/broken code that isn't ready for building and for placeholders. `dev/` mirrors the organization of it's parent `src` intentionally, to convey likely destinations of WIP and placeholder items.
+
+TODO: repair broken references across project where filepaths and filenames have suddenly changed. do not assume broken references in csproj files are vestigial. current breaks are part of the WIP cleanup progress.
+
+## 2026-05-13 — Embedding ETL probe surface, graph-binding adapters, hyperbolic hierarchy
+
+### Added
+
+- **`projects/EmbeddingEtl/EmbeddingEtl.csproj` + `src/manifolds/transforms/PoincareTransforms.cs` — dedicated embedding ETL project and manifold transforms**: added a new ETL-oriented project boundary for manifold preparation work, separate from `StatisticalEstimators`. `PoincareTransforms` now exposes two explicit Euclidean-to-ball preparation paths: dataset-wide linear `ScaleToOpenBall` and tangent-space `ExpMapFromOrigin`, both with batch overloads for embedding matrices.
+- **`src/manifolds/adapters/ProbeContracts.cs` + `src/manifolds/adapters/ManifoldAdapters.cs` + `src/manifolds/adapters/ContractValidator.cs` — manifold probe contract surface**: added a probe-specific adapter contract (`ProbeMetric`, `ProbeContract`, `IManifoldAdapter`) plus adapter lookup and graph-readiness validation. This gives the graph-binding layer a typed ETL handoff: raw ambient features -> adapted manifold features -> domain validation before distance dispatch.
+- **`projects/VizApi/DistanceFactory.cs`** — graph-binding distance factory now lives on the consumer side rather than inside `EmbeddingEtl`. The ETL layer remains metric-free; VizApi owns the final metric-to-distance delegate binding over validated adapted features.
+- **`src/synthetic/HyperbolicHierarchy.cs` + `projects/VizApi/Program.cs` + `src/viz-core/schema_catalog.cs` — `HyperbolicBlattHierarchy` integrated end-to-end**: added a new synthetic generator that produces recursively nested clusters directly inside the Poincare ball, exposes hierarchical GT labels through `LabelsByLevel`, is selectable in VizApi, and is registered in the schema catalog so the viewer generator picker surfaces it with its own parameter schema.
+
+### Changed
+
+- **`src/manifolds/adapters/identity.cs` + `src/manifolds/adapters/simplex.cs` + `src/manifolds/adapters/hyperbolic.cs` — adapters now enforce ETL buffer shape and manifold semantics**: all adapters now validate `raw.Length == n × d` before adaptation. The simplex adapter note was corrected to match softmax temperature semantics (higher `τ` flattens distributions), and the hyperbolic adapter now delegates to `PoincareTransforms.ExpMapFromOrigin` rather than duplicating its own tanh squash.
+- **`projects/VizApi/Program.cs` — graph binding now flows through the probe contract pipeline**: the old hard-coded metric switch was replaced by `adapter -> contract -> validator -> distance factory -> GraphBuilder`. This centralises manifold preparation and domain checks instead of scattering special-case metric handling through the request path.
+- **`projects/VizApi/Program.cs` — native-manifold generators now bypass redundant ETL adaptation**: `HyperbolicBlobs`, `HyperbolicBlattHierarchy`, `Simplex`, and `GaussianManifold` are treated as already native to their paired geodesic spaces when the requested metric matches. VizApi now uses `IdentityAdapter` for those cases rather than re-embedding already-manifold-valued fixtures into the same manifold a second time.
+- **`src/viz-core/schema_catalog.cs` — graph metric schema now exposes `Poincare` directly**: the shared graph metric dropdown schema now includes `Poincare`, so hyperbolic-native generators can be explored from the UI without special-case front-end wiring.
+- **`projects/VizApi/Program.cs` + `record RegenRequest`** — request surface extended for hyperbolic hierarchy control: added `HierarchyPoints`, `HierarchyDepth`, `BranchesPerNode`, `BasePointsPerLeaf`, and `RadiusDecay` so the new hierarchy generator can be driven through the same regen contract as the existing synthetic fixtures.
+
 ## 2026-05-12 — VizApi: graph-builder controls, paired metric fixtures, GMM/UI cleanup
 
 ### Added
@@ -13,7 +194,9 @@
 - **`src/viz-core/viewer.html` — GMM controls and visibility model redesigned**: the old single ellipsoid toggle was replaced by a mode dropdown (`Oracle` / `EM`) plus independent `Surface` and `Wireframe` toggles. Both default off, wireframe-only is now a valid state, and Gaussian colors are coordinated with the fitted cluster rather than falling back to muddy crimson/additive blends.
 - **`projects/VizApi/Program.cs` + `src/viz-core/adapter.cs` — legacy K=1 Gaussian layers removed from the base synthetic adapter**: the adapter no longer emits always-on analytic/best-fit Gaussian overlays. VizApi now emits exactly one user-selected Gaussian layer per regen, keyed by `GmmMode`, with oracle components inheriting the source cluster index and EM components mapped back to dominant GT cluster labels for consistent coloring.
 - **`src/viz-core/viewer.html` — graph diagnostics upgraded from a terse spec string to an explanatory stats strip**: the legend/header now reports metric, neighborhood rule, kernel, bandwidth, MST repair, edge count, component count, and coupling-weight range. `Scalar` was renamed to **Color by**, and the legend now includes a cluster palette key plus an edges key explaining cluster-colored wires and crimson false bridges.
-- **`src/viz-core/viewer.html` — regen wiring and flow-field rendering repaired**: graph controls (`rule`, `k`, `metric`, `epsilon`, `kernel`, `bandwidth`, `seed`, `MST Repair`, `GmmMode`) now trigger regeneration; rehydrated local-flow meshes are re-added to the scene; and instanced cone coloring now uses per-instance colors so the orientation-propagated local PCA field remains visible after regen.
+- **`src/viz-core/viewer.html` — regen wiring and flow-field rendering repaired**: graph controls (`rule`, `k`, `metric`, `epsilon`, `kernel`, `bandwidth`, `seed`, `MST Repair`, `GmmMode`) now trigger regeneration; rehydrated local-flow meshes are re-added to the scene; flow glyphs can render as `Beam` or `Cone` with `Beam` as the default; scalar recoloring now propagates to the flow overlay; and scalar-layer selection is preserved across regens.
+- **`projects/VizApi/Program.cs` + `src/viz-core/scene_renderer.cs` — flow-state propagation now reaches the scene package**: `ShowFlow` is no longer dropped on the floor. VizApi now emits scene hints with the requested vector-field visibility and filters active vector-field layers accordingly, so the serialized scene matches the current flow toggle state.
+- **`src/viz-core/viewer.html` + `projects/VizApi/Program.cs` — edge diagnostics and guard rails tightened**: the graph marquee now reports false-bridge counts and surfaces invalid-edge/self-loop counts when present, edge mesh construction skips malformed/self-loop entries instead of drawing them, and VizApi asserts that CSR edge packing fills the exact expected edge count before serializing the layer.
 - **`src/viz-core/serializer.cs` — Gaussian rendering now tolerates non-3D covariance matrices**: 2D fitted covariances are embedded into the top-left of a 3x3 render covariance with a small epsilon pad on the remaining diagonal, so 2D fixtures such as `GaussianManifold` and `HyperbolicBlobs` render as thin discs instead of throwing on a hard-coded 3x3 Cholesky read.
 - **`projects/DistanceMetrics/DistanceMetrics.csproj` + `projects/VizApi/Program.cs` — geodesic metrics fully wired for the viewer**: `Poincare` is now compiled into `DistanceMetrics`, dispatched by VizApi, and selectable in the viewer alongside `FisherRaoSimplex` and `FisherRaoHalfPlane`.
 - **`projects/ProximityGraphs/ProximityGraphs.csproj` + `src/graphs/GraphBuilder.cs` + `src/synthetic/MobiusEllipsoid.cs` — build hygiene fixes for the viz stack**: restored compile includes for proximity-selection / MST-repair sources, fixed the nullable scratch-buffer warning in `GraphBuilder`, and corrected the stale XML doc reference in `MobiusEllipsoid`.
