@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Spc.HyperbolicSmoke</RootNamespace>
+    <AssemblyName>Spc.HyperbolicSmoke</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Clustering.SPC\Clustering.SPC.csproj" />
+    <ProjectReference Include="..\..\Graphs.Primitives\Graphs.Primitives.csproj" />
+    <ProjectReference Include="..\..\Graphs.Distance\Graphs.Distance.csproj" />
+    <ProjectReference Include="..\..\Synthetic\Synthetic.csproj" />
+  </ItemGroup>
+</Project>

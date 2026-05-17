@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Clustering.Init</RootNamespace>
+    <AssemblyName>Clustering.Init</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\clustering\init\*.cs" Link="init\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

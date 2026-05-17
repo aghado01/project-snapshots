@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>TDA.Mapper</RootNamespace>
+    <AssemblyName>TDA.Mapper</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\tda\mapper\**\*.cs" Link="mapper\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Graphs.Primitives\Graphs.Primitives.csproj" />
+    <ProjectReference Include="..\Graphs.Proximity\Graphs.Proximity.csproj" />
+    <ProjectReference Include="..\Maths.LinAlg\Maths.LinAlg.csproj" />
+    <ProjectReference Include="..\Clustering.Init\Clustering.Init.csproj" />
+    <ProjectReference Include="..\Clustering.GMM\Cluster.GMM.csproj" />
+    <ProjectReference Include="..\Clustering.SPC\Clustering.SPC.csproj" />
+  </ItemGroup>
+</Project>

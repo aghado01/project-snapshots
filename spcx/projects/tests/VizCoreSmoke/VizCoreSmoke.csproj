@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>VizCoreSmoke</RootNamespace>
+    <AssemblyName>VizCoreSmoke</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\VizCore\VizCore.csproj" />
+    <ProjectReference Include="..\..\Graphs.Proximity\Graphs.Proximity.csproj" />
+  </ItemGroup>
+</Project>

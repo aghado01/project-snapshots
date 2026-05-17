@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>TDA.Primitives</RootNamespace>
+    <AssemblyName>TDA.Primitives</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\tda\primitives\*.cs" Exclude="..\..\src\tda\primitives\LOBPCG.cs" Link="primitives\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Graphs.Primitives\Graphs.Primitives.csproj" />
+    <ProjectReference Include="..\Maths.LinAlg\Maths.LinAlg.csproj" />
+  </ItemGroup>
+</Project>

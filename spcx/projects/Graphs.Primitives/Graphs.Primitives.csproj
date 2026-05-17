@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Graphs.Primitives</RootNamespace>
+    <AssemblyName>Graphs.Primitives</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\graphs\primitives\*.cs" Link="primitives\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
