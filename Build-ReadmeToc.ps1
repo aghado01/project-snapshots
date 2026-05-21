@@ -32,9 +32,10 @@ foreach ($dir in $subdirs)
         $treeLines.Add("    $($dir.Name)")
         $treeLines.Add("        $($treeMd.Name)")
 
-        # Supplementary: files that are not the tree .md and not payload shards (*_s*.txt)
+        # Supplementary: files that are not the tree .md and not payload shards
+        # Handle both classic shards like *_s001.txt and grouped shards like *_s002_external.txt
         $supplementary = Get-ChildItem -Path $dir.FullName -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -ne $treeMd.Name -and $_.Name -notmatch '_s\d+\.txt$' } |
+        Where-Object { $_.Name -ne $treeMd.Name -and $_.Name -notmatch '_s\d{3}(?:_.*)?\.txt$' } |
         Sort-Object Name
 
         # Append/replace Supplementary files section in the tree.md itself
