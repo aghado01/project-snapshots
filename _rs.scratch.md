@@ -15,7 +15,10 @@ $stripComments = $True
 $ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threadparsed", ".vscode", ".depr", ".experiments", "ingest", ".schemas", ".feedback", ".legacy", ".discussion", ".notes", ".copilot", ".git-old", "assemblies", "enhancements", "tests","venv", ".claude","**.cache**","smoke-test", "configs",".venv","data","docs","reports")
 $ignoreFiles = @("*.md","*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.gitignore","*.copilotignore", "*.pyc","*.scratch.md", "*snapignore.txt")
 $ignores = $ignoreDirectories + $ignoreFiles
-Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -GroupingStrategy $groupingStrategy -PackingStrategy $packingStrategy -ExtraExcludePatterns $ignores -StripComments $stripComments -IncludeFileContent $includeFileContent
+# $shardOutputDir = Join-Path $target ".snapshot"
+$shardOutputDir = "C:/Users/azrie/PDenv/UserGithub/project-snapshots/spcx"
+$shardOutputDir = $shardOutputDir -Replace '\\', '/'
+Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -GroupingStrategy $groupingStrategy -PackingStrategy $packingStrategy -ExtraExcludePatterns $ignores -StripComments $stripComments -IncludeFileContent $includeFileContent -ShardOutputDirectory $shardOutputDir
 
 
 # Selections workflow
