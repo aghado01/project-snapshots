@@ -5,7 +5,7 @@
 # import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshotlts.psm1" -Force
 
-$target = "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.pwshspc/src"
+$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.pwshspc\src\code-analysis"
 $target = $target -Replace '\\', '/'
 $shardsize = 32768
 $groupingStrategy = "ByRootDirectory"
