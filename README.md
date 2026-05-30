@@ -6,7 +6,7 @@ Welcome to the project-snapshots repository. This README is the primary entry po
 
 Each \*\_tree.md file contains byte-offset indexed file metadata for selective LLM context loading from the corresponding `*.txt` sharded snapshot payload files.
 
-## Meta Tree `20260529_044113`
+## Meta Tree `20260529_172750`
 
 ```
 project-snapshots
@@ -27,7 +27,7 @@ project-snapshots
     reposnapshot
         reposnapshot-v3_20260422_201912_tree.md
     spcx
-        src_20260529_043851_tree.md
+        src_20260529_172647_tree.md
     surprise-learner
         src_20260510_165400_tree.md
     threadparser
