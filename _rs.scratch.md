@@ -5,7 +5,8 @@
 # import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshotlts.psm1" -Force
 
-$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.pwshspc\projects\tests"
+$projectname = "spcx"
+$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.pwshspc\src" # "D:\pdenv\CyberneticCodePilot"
 $target = $target -Replace '\\', '/'
 $shardsize = 32768
 $groupingStrategy = "ByRootDirectory"
@@ -17,7 +18,7 @@ $ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threa
 $ignoreFiles = @("*.md","*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.csproj","*.gitignore","*.copilotignore", "*.pyc","*.scratch.md", "*snapignore.txt")
 $ignores = $ignoreDirectories + $ignoreFiles
 # $shardOutputDir = Join-Path $target ".snapshot"
-$shardOutputDir = "C:/Users/azrie/PDenv/UserGithub/project-snapshots/spcx"
+$shardOutputDir = "C:/Users/azrie/PDenv/UserGithub/project-snapshots/$projectname"
 $shardOutputDir = $shardOutputDir -Replace '\\', '/'
 Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -GroupingStrategy $groupingStrategy -PackingStrategy $packingStrategy -ExtraExcludePatterns $ignores -StripComments $stripComments -IncludeFileContent $includeFileContent -ShardOutputDirectory $shardOutputDir -ExcludeShardMetadata $False
 

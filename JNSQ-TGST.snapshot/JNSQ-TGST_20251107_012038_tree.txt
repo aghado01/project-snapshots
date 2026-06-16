@@ -1,0 +1,39 @@
+JNSQ-TGST
+│   .discussion
+│   │   comet-pantheon-lain.md
+│   │   ConfusionMethodoogy.md
+│   │   fleeting thoughts.md
+│   │   food vs thought and axioms
+│   │   Gargoyle to Godel-Heisenberg.md
+│   │   godel-heisenberg.md
+│   │   jnsq_compact_20251027_232916.md
+│   │   lmstudio.md
+│   │   meta review.md
+│   │   prelude.md
+│   │   primitives-research.md
+│   │   review.md
+│       riddles-quandries-beyond.md
+│   JNSQ-TGST.snapshot
+│   │   JNSQ-TGST_20251107_012014_tree.txt
+│       JNSQ-TGST_20251107_012014.json
+│   quotations
+│       QUOTATIONS.md
+│   registries
+│   │   books.jsonl
+│   │   movies.jsonl
+│   │   shelf.jsonl
+│   │   shows.jsonl
+│       thinkers.jsonl
+│   __init__.py
+│   .gitattributes
+│   .gitignore
+│   .ignore
+│   CHANGELOG.md
+│   JNSQ.md
+│   JOKES.MD
+│   LICENSE.md
+│   NL-AST.md
+│   project.toml
+│   REGISTRY.MD
+│   snif-test.md
+    TODO.md

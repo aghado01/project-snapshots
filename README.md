@@ -6,7 +6,7 @@ Welcome to the project-snapshots repository. This README is the primary entry po
 
 Each \*\_tree.md file contains byte-offset indexed file metadata for selective LLM context loading from the corresponding `*.txt` sharded snapshot payload files.
 
-## Meta Tree `20260603_185001`
+## Meta Tree `20260616_123126`
 
 ```
 project-snapshots
@@ -16,6 +16,8 @@ project-snapshots
         src_20260420_123358_tree.md
     context-probes
         src_20260501_172607_tree.md
+    cybernetic-codepilot
+        CyberneticCodePilot_20260608_204032_tree.md
     cybernetic-copilot
         cybernetics_20260421_001818_tree.md
     hierarchical-memory
@@ -27,7 +29,7 @@ project-snapshots
     reposnapshot
         reposnapshot-v3_20260422_201912_tree.md
     spcx
-        tests_20260603_184506_tree.md
+        src_20260616_123028_tree.md
     surprise-learner
         src_20260510_165400_tree.md
     threadparser
