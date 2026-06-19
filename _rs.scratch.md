@@ -5,8 +5,9 @@
 # import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshotlts.psm1" -Force
 
-$projectname = "spcx"
-$target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.pwshspc\src" # "D:\pdenv\CyberneticCodePilot"
+$projectname = "ripserer.jl"
+$target = "C:\Users\azrie\PDenv\UserGithub\packages\Ripserer.jl\src" 
+# $target = "C:\Users\azrie\PDenv\UserGithub\PowerShellCore\ps.core.pwshspc\src" # "D:\pdenv\CyberneticCodePilot"
 $target = $target -Replace '\\', '/'
 $shardsize = 32768
 $groupingStrategy = "ByRootDirectory"
