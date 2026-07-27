@@ -5,13 +5,15 @@
 # import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshot.psm1" -Force
 import-module "C:/Users/azrie/PDenv/UserGithub/PowerShellCore/ps.core.reposnapshot/reposnapshotlts.psm1" -Force
 
-$projectname = "ThermoMapper"
 # $target = "C:\Users\azrie\PDenv\UserGithub\packages\gudhi-devel\src"\
 # "D:\pdenv\CyberneticCodePilot"
-$target = "D:\aghado01\ThermoMapper\src"
+$projectname = "reposnapshot"
+$target = "D:\aghado01\utils\reposnapshot"
 $target = $target -Replace '\\', '/'
+$shardOutputDir = "C:/Users/azrie/PDenv/UserGithub/project-snapshots/$projectname"
+$shardOutputDir = $shardOutputDir -Replace '\\', '/'
 $shardsize = 32768
-$groupingStrategy = "ByRootDirectory"
+$groupingStrategy =  "Flat" # "ByRootDirectory"
 $packingStrategy = "Balanced"
 $includeFileContent = $True
 $stripComments = $True
@@ -20,10 +22,9 @@ $ignoreDirectories = @("tests", "schemas", ".snapshot", ".threadparser", ".threa
 $ignoreFiles = @("*.in","*.md","*.txt", "*.json", "*.jsonl","*.yml","*.ini","*.csproj","*.gitignore","*.copilotignore", "*.pyc","*.scratch.md", "*snapignore.txt")
 $ignores = $ignoreDirectories + $ignoreFiles
 # $shardOutputDir = Join-Path $target ".snapshot"
-$shardOutputDir = "C:/Users/azrie/PDenv/UserGithub/project-snapshots/$projectname"
-$shardOutputDir = $shardOutputDir -Replace '\\', '/'
-Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -GroupingStrategy $groupingStrategy -PackingStrategy $packingStrategy -ExtraExcludePatterns $ignores -StripComments $stripComments -IncludeFileContent $includeFileContent -ShardOutputDirectory $shardOutputDir -ExcludeShardMetadata $False
+Get-ShardedRepoSnapshot $target -MaxShardSpanBytes $shardsize -GroupingStrategy $groupingStrategy -PackingStrategy $packingStrategy -ExtraExcludePatterns $ignores -StripComments $stripComments -IncludeFileContent $includeFileContent -ExcludeShardMetadata $True -ExcludeAttributes $True
 
+# -ShardOutputDirectory $shardOutputDir
 
 
 # Selections workflow
